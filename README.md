@@ -60,7 +60,7 @@ proxy method can be passed two arguments `cache_key` and `expire_seconds`.
 You can install requirements with pipenv
 
 ```shell
-$ pipenv install
+$ pipenv install --dev
 ```
 
 ### Test
