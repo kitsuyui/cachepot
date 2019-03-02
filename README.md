@@ -1,6 +1,15 @@
 # cachepot
 
+[![image](https://img.shields.io/pypi/v/cachepot.svg)](https://pypi.org/project/cachepot/)
+[![image](https://img.shields.io/pypi/l/cachepot.svg)](https://pypi.org/project/cachepot/)
+
 Yet another Python cache library. This has Python 3 typing hints.
+
+## Installation
+
+```
+$ pip install cachepot
+```
 
 ## Usage
 
