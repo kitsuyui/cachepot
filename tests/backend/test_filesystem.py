@@ -11,6 +11,7 @@ class TestFileSystemCacheBackend(unittest.TestCase):
     def test_various_pathlike(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             cachestore = FileSystemCacheBackend(pathlib.Path(tmpdir))
+            self.assertEqual(cachestore.load(b'1'), None)
             cachestore.save(b'1', b'2', expire_seconds=1)
             self.assertEqual(cachestore.load(b'1'), b'2')
             cachestore.delete(b'1')
@@ -18,6 +19,7 @@ class TestFileSystemCacheBackend(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             cachestore = FileSystemCacheBackend(tmpdir)
+            self.assertEqual(cachestore.load(b'3'), None)
             cachestore.save(b'3', b'4', expire_seconds=1)
             self.assertEqual(cachestore.load(b'3'), b'4')
             cachestore.delete(b'3')
