@@ -1,9 +1,8 @@
 from setuptools import setup
 
-
 setup(
     name='cachepot',
-    version='0.1.1',
+    version='0.1.2',
     description='Yet another Python cache library',
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',

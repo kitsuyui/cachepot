@@ -52,7 +52,7 @@ proxy method can be passed two arguments `cache_key` and `expire_seconds`.
 
 - Typing supports
 - Generic serializers ... [pickle](https://docs.python.org/3/library/pickle.html), [JSON](https://tools.ietf.org/html/rfc8259), and more serializers you can define.
-- Generic backends ... Currently supports only filesystem backend. But it is not so difficult to add Redis or the other KVS backends. And of course you can define own backend.
+- Generic backends ... Currently supports only filesystem backend and sqlite3 backend. But it is not so difficult to add Redis or the other KVS backends. And of course you can define own backend.
 - Proxy interface
 
 ## Development
