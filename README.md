@@ -2,6 +2,7 @@
 
 [![image](https://img.shields.io/pypi/v/cachepot.svg)](https://pypi.org/project/cachepot/)
 [![image](https://img.shields.io/pypi/l/cachepot.svg)](https://pypi.org/project/cachepot/)
+[![CircleCI](https://circleci.com/gh/kitsuyui/cachepot.svg?style=svg)](https://circleci.com/gh/kitsuyui/cachepot)
 
 Yet another Python cache library. This has Python 3 typing hints.
 

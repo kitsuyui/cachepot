@@ -1,0 +1,35 @@
+# Python CircleCI 2.0 configuration file
+#
+# Check https://circleci.com/docs/2.0/language-python/ for more details
+#
+version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/python:3.7.2@sha256:398089ea890e222b56bc8fcc905df6caf89cf6cf9000148ce1d755210fbb4405
+    working_directory: ~/repo
+
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - cache-{{ checksum "Pipfile.lock" }}
+            - cache-
+      - run:
+          name: Install dependencies
+          command: |
+            pip install --user pipenv
+            pipenv sync --dev
+      - save_cache:
+          key: cache-{{ checksum "Pipfile.lock" }}
+          paths:
+            - ~/.local
+            - ~/.cache
+      - run:
+          name: run tests
+          command: |
+            set -eu
+            pipenv run flake8 .
+            pipenv run mypy .
+            pipenv run isort -rc --check-only
+            pipenv run python setup.py test
