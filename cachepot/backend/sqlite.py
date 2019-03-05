@@ -1,9 +1,7 @@
 import pathlib
 import sqlite3
 from datetime import datetime
-from typing import Optional, Union
-
-from typing_extensions import Protocol
+from typing import Optional, Union, cast
 
 from cachepot.backend import CacheBackendProtocol
 from cachepot.expire import ExpireSeconds, to_timedelta
@@ -54,7 +52,7 @@ INSERT OR REPLACE INTO cachepot
          WHERE key = ?
            AND expire_at > ?''', (key, current_datetime)).fetchone()
         if result:
-            return result[0]
+            return cast(bytes, result[0])
         return None
 
     def delete(self, key: bytes) -> None:
