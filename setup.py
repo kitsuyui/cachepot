@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='cachepot',
-    version='0.1.2',
+    version='0.1.3',
     description='Yet another Python cache library',
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
@@ -25,6 +25,9 @@ setup(
     install_requires=[
         'typing-extensions',
     ],
+    extras_require={
+        'redis': ['redis>=3.0'],
+    },
     tests_require=[],
     classifiers=[
         'Development Status :: 3 - Alpha',
