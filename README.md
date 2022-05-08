@@ -1,8 +1,7 @@
 # cachepot
 
-[![image](https://img.shields.io/pypi/v/cachepot.svg)](https://pypi.org/project/cachepot/)
-[![image](https://img.shields.io/pypi/l/cachepot.svg)](https://pypi.org/project/cachepot/)
-[![CircleCI](https://circleci.com/gh/kitsuyui/cachepot.svg?style=svg)](https://circleci.com/gh/kitsuyui/cachepot)
+[![PyPI](https://img.shields.io/pypi/v/cachepot.svg)](https://pypi.org/project/cachepot/)
+[![Lint and Test Python](https://github.com/kitsuyui/cachepot/actions/workflows/python-test.yml/badge.svg)](https://github.com/kitsuyui/cachepot/actions/workflows/python-test.yml)
 
 Yet another Python cache library. This has Python 3 typing hints.
 
