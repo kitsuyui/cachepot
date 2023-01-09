@@ -2,7 +2,6 @@ from cachepot.serializer import SerializerProtocol
 
 
 class StringSerializer(SerializerProtocol[str]):
-
     def serialize(self, data: str) -> bytes:
         return data.encode()
 

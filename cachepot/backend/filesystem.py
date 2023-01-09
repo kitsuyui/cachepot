@@ -23,15 +23,12 @@ class FileSystemCacheBackend(CacheBackendProtocol):
     def __get_real_path(self, key: bytes) -> pathlib.Path:
         return self.path / hashlib.sha256(key).hexdigest()
 
-    def save(self,
-             key: bytes,
-             value: bytes,
-             expire_seconds: ExpireSeconds) -> None:
+    def save(self, key: bytes, value: bytes, expire_seconds: ExpireSeconds) -> None:
         expire_at = datetime.now() + to_timedelta(expire_seconds)
         expire_timestamp = time.mktime(expire_at.timetuple())
 
         realpath = self.__get_real_path(key)
-        with cast(BinaryIO, realpath.open('wb')) as f:
+        with cast(BinaryIO, realpath.open("wb")) as f:
             f.write(value)
         os.utime(str(realpath), (expire_timestamp, expire_timestamp))
 
@@ -41,7 +38,7 @@ class FileSystemCacheBackend(CacheBackendProtocol):
             return None
         if path.stat().st_mtime < time.mktime(datetime.now().timetuple()):
             return None
-        with cast(BinaryIO, path.open('rb')) as f:
+        with cast(BinaryIO, path.open("rb")) as f:
             return f.read()
 
     def delete(self, key: bytes) -> None:

@@ -10,10 +10,19 @@ isort = "*"
 redis = "*"
 typed-ast = "*"
 types-redis = "*"
+pyupgrade = "*"
+build = "*"
+pytest = "*"
+pytest-cov = "*"
+setuptools-scm = "*"
+black = "*"
 
 [packages]
 typing-extensions = "*"
 
 [scripts]
-test = "python -m unittest"
-lint = "sh -c 'flake8 cachepot tests && mypy cachepot && isort cachepot tests --check'"
+build = "make build"
+clean = "make clean"
+test = "make test"
+lint = "make lint"
+format = "make format"
