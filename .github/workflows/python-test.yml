@@ -8,7 +8,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ["3.7", "3.8", "3.9", "3.10"]
+        node: ["3.7", "3.8", "3.9", "3.10", "3.11"]
 
     services:
       redis:
@@ -66,7 +66,7 @@ jobs:
         run: pipenv run pytest --cov=cachepot tests --doctest-modules --cov-report=xml
 
       - name: Upload coverage report to Codecov
-        if: matrix.python == '3.10'
+        if: matrix.python == '3.11'
         uses: codecov/codecov-action@v3
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
