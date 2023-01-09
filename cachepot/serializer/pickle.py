@@ -5,7 +5,6 @@ from cachepot.serializer import SerializerProtocol
 
 
 class PickleSerializer(SerializerProtocol[Any]):
-
     def serialize(self, data: Any) -> bytes:
         return pickle.dumps(data)
 
