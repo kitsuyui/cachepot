@@ -22,31 +22,60 @@ jobs:
           - 6379:6379
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        id: setup-python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "${{ matrix.python }}"
+          cache: pipenv
 
       - name: Install pipenv
-        run: pipx install pipenv
-
-      - uses: actions/setup-python@v4
+        run: |
+          python -m pip install pipenv
+          pipenv --python "${{ matrix.python }}"
+      - name: Cache
+        id: cache-python
+        uses: actions/cache@v3
         with:
-          python-version: "${{ matrix.node }}"
-          cache: "pipenv"
-          architecture: "x64"
-
-      - name: Get Python version
-        run: pipenv run python -V
-
-      - name: Install dependencies
-        run: pipenv sync --dev
-
-      - name: Run Lint
+          path: ~/.local/share/virtualenvs
+          key: ${{ runner.os }}-build-${{ matrix.python }}-${{ hashFiles('**/Pipfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ matrix.python }}-${{ hashFiles('**/Pipfile.lock') }}
+            ${{ runner.os }}-build-${{ matrix.python }}-
+            ${{ runner.os }}-
+      - if: ${{ steps.cache-python.outputs.cache-hit != 'true' }}
+        name: Install dependencies
+        run: |
+          pipenv sync --dev
+          pipenv clean
+      - name: Lint
         run: pipenv run lint
 
-      - name: Run Test
+      - name: Check Python version
         run: |
-          pipenv run test
+          actual_version=$(pipenv run python --version)
+          expected_version="Python ${{ matrix.python }}"
+          if [ "$actual_version" == *"$expected_version"* ]; then
+            echo "Expected $expected_version, but got $actual_version"
+            exit 1
+          fi
+      - name: Test
+        run: pipenv run pytest --cov=cachepot tests --doctest-modules --cov-report=xml
 
-      - name: Dry Run Install
+      - name: Upload coverage report to Codecov
+        if: matrix.python == '3.10'
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: true
+          verbose: true
+
+      - name: Packaging
         run: |
-          pipenv run python setup.py build
-          pipenv run python setup.py install --dry-run
+          pipenv run build
