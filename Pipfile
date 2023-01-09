@@ -15,6 +15,7 @@ build = "*"
 pytest = "*"
 pytest-cov = "*"
 setuptools-scm = "*"
+black = "*"
 
 [packages]
 typing-extensions = "*"
