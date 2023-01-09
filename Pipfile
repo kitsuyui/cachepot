@@ -10,6 +10,7 @@ isort = "*"
 redis = "*"
 typed-ast = "*"
 types-redis = "*"
+pyupgrade = "*"
 
 [packages]
 typing-extensions = "*"
