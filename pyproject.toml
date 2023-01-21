@@ -1,9 +1,61 @@
+[tool.black]
+line-length = 79
+
+[tool.poetry]
+# I use poetry as just a package manager.
+# So, I only write the settings that poetry needs.
+# The actual package metadata is written in setup.cfg.
+# I use pypa/build for packaging.
+name = "cachepot"
+version = "0.0.0"
+description = ""
+authors = []
+packages = [
+    { include = "cachepot" },
+]
+
+[tool.poetry.dependencies]
+python = "^3.7"
+typing-extensions = { version = "^3.7.4", python = "<3.8" }
+
+[tool.poetry.group.dev.dependencies]
+black = "*"
+pytest = "*"
+isort = "*"
+pyupgrade = "*"
+pytest-cov = "*"
+flake8 = "*"
+mypy = "*"
+poethepoet = "*"
+setuptools-scm = "*"
+build = "*"
+redis = "*"
+types-redis = "*"
+
 [build-system]
 requires = ["setuptools",  "setuptools_scm"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
 write_to = "cachepot/_version.py"
+
+[tool.poe.tasks]
+test = "pytest"
+coverage-xml = "pytest --cov=cachepot --doctest-modules --cov-report=xml"
+format = [
+    { cmd = "isort cachepot"},
+    { cmd = "black cachepot"},
+    { cmd = "pyupgrade --py37-plus cachepot/*.py"},
+]
+check = [
+    { cmd = "isort --check-only --diff cachepot"},
+    { cmd = "black --check --diff cachepot"},
+    { cmd = "flake8 cachepot"},
+    { cmd = "mypy cachepot"},
+]
+build = [
+    { cmd = "python -m build"}
+]
 
 [tool.mypy]
 # https://mypy.readthedocs.io/en/latest/config_file.html
