@@ -15,7 +15,11 @@ class CacheStoreProtocol(Protocol[T, S]):
         ...
 
     def put(
-        self, key: T, value: S, *, expire_seconds: Optional[ExpireSeconds] = None
+        self,
+        key: T,
+        value: S,
+        *,
+        expire_seconds: Optional[ExpireSeconds] = None
     ) -> None:
         ...
 
@@ -59,13 +63,19 @@ class CacheStore(CacheStoreProtocol[T, S]):
         return self.value_serializer.deserialize(loaded)
 
     def put(
-        self, key: T, value: S, *, expire_seconds: Optional[ExpireSeconds] = None
+        self,
+        key: T,
+        value: S,
+        *,
+        expire_seconds: Optional[ExpireSeconds] = None
     ) -> None:
         if expire_seconds is None:
             expire_seconds = self.default_expire_seconds
         real_key = self.__get_real_key(key)
         serialized_value = self.value_serializer.serialize(value)
-        self.backend.save(real_key, serialized_value, expire_seconds=expire_seconds)
+        self.backend.save(
+            real_key, serialized_value, expire_seconds=expire_seconds
+        )
 
     def proxy(self, original_function: Callable[..., S]) -> Callable[..., S]:
         def _proxy(
