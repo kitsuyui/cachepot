@@ -12,7 +12,9 @@ class RedisCacheBackend(CacheBackendProtocol):
     def __init__(self, redis_connection: redis.Redis):
         self.redis = redis_connection
 
-    def save(self, key: bytes, value: bytes, *, expire_seconds: ExpireSeconds) -> None:
+    def save(
+        self, key: bytes, value: bytes, *, expire_seconds: ExpireSeconds
+    ) -> None:
         with self.redis.pipeline() as pipe:
             pipe.set(key, value)
             pipe.expire(key, to_timedelta(expire_seconds))

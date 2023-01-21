@@ -23,7 +23,9 @@ class FileSystemCacheBackend(CacheBackendProtocol):
     def __get_real_path(self, key: bytes) -> pathlib.Path:
         return self.path / hashlib.sha256(key).hexdigest()
 
-    def save(self, key: bytes, value: bytes, expire_seconds: ExpireSeconds) -> None:
+    def save(
+        self, key: bytes, value: bytes, expire_seconds: ExpireSeconds
+    ) -> None:
         expire_at = datetime.now() + to_timedelta(expire_seconds)
         expire_timestamp = time.mktime(expire_at.timetuple())
 
