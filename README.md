@@ -83,18 +83,17 @@ Of course you can define own backend.
 
 ## Development
 
-You can install requirements with pipenv
+You can install requirements with poetry.
 
 ```shell
-$ pipenv install --dev
+$ poetry install
 ```
 
 ### Test
 
 ```shell
-$ flake8
-$ mypy .
-$ python3 -m unittest discover
+$ poetry poe check  # lint and type check
+$ poetry poe test  # run tests
 ```
 
 # LICENSE
