@@ -16,7 +16,7 @@ packages = [
 
 [tool.poetry.dependencies]
 python = "^3.7"
-typing-extensions = { version = "^3.7.4", python = "<3.8" }
+typing-extensions = "*"
 
 [tool.poetry.group.dev.dependencies]
 black = "*"
