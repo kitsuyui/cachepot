@@ -15,7 +15,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.7"
+python = "^3.8"
 typing-extensions = "*"
 
 [tool.poetry.group.dev.dependencies]
@@ -45,7 +45,7 @@ coverage-xml = "pytest --cov=cachepot --doctest-modules --cov-report=xml"
 format = [
     { cmd = "isort cachepot"},
     { cmd = "black cachepot"},
-    { cmd = "pyupgrade --py37-plus cachepot/*.py"},
+    { cmd = "pyupgrade --py38-plus cachepot/*.py"},
 ]
 check = [
     { cmd = "isort --check-only --diff cachepot"},
