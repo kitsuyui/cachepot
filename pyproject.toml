@@ -1,4 +1,4 @@
-[tool.black]
+[tool.ruff]
 line-length = 79
 
 [tool.poetry]
@@ -10,22 +10,16 @@ name = "cachepot"
 version = "0.0.0"
 description = ""
 authors = []
-packages = [
-    { include = "cachepot" },
-]
+packages = [{ include = "cachepot" }]
 
 [tool.poetry.dependencies]
 python = "^3.8"
 typing-extensions = "*"
 
 [tool.poetry.group.dev.dependencies]
-black = "*"
+ruff = "*"
 pytest = "*"
-isort = "*"
-pyupgrade = "*"
 pytest-cov = "*"
-flake8 = "*"
-mypy = "*"
 poethepoet = "*"
 setuptools-scm = "*"
 build = "*"
@@ -33,7 +27,7 @@ redis = "*"
 types-redis = "*"
 
 [build-system]
-requires = ["setuptools",  "setuptools_scm"]
+requires = ["setuptools", "setuptools_scm"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
@@ -42,20 +36,9 @@ write_to = "cachepot/_version.py"
 [tool.poe.tasks]
 test = "pytest"
 coverage-xml = "pytest --cov=cachepot --doctest-modules --cov-report=xml"
-format = [
-    { cmd = "isort cachepot"},
-    { cmd = "black cachepot"},
-    { cmd = "pyupgrade --py38-plus cachepot/*.py"},
-]
-check = [
-    { cmd = "isort --check-only --diff cachepot"},
-    { cmd = "black --check --diff cachepot"},
-    { cmd = "flake8 cachepot"},
-    { cmd = "mypy cachepot"},
-]
-build = [
-    { cmd = "python -m build"}
-]
+format = "ruff format cachepot"
+check = "ruff check cachepot"
+build = [{ cmd = "python -m build" }]
 
 [tool.mypy]
 # https://mypy.readthedocs.io/en/latest/config_file.html

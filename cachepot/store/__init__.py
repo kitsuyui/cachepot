@@ -19,7 +19,7 @@ class CacheStoreProtocol(Protocol[T, S]):
         key: T,
         value: S,
         *,
-        expire_seconds: Optional[ExpireSeconds] = None
+        expire_seconds: Optional[ExpireSeconds] = None,
     ) -> None:
         ...
 
@@ -67,7 +67,7 @@ class CacheStore(CacheStoreProtocol[T, S]):
         key: T,
         value: S,
         *,
-        expire_seconds: Optional[ExpireSeconds] = None
+        expire_seconds: Optional[ExpireSeconds] = None,
     ) -> None:
         if expire_seconds is None:
             expire_seconds = self.default_expire_seconds
@@ -82,7 +82,7 @@ class CacheStore(CacheStoreProtocol[T, S]):
             *args: Any,
             cache_key: T,
             expire_seconds: Optional[ExpireSeconds] = None,
-            **kwargs: Any
+            **kwargs: Any,
         ) -> S:
             cached_result = self.get(cache_key)
             if cached_result is not None:
