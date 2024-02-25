@@ -38,18 +38,4 @@ test = "pytest"
 coverage-xml = "pytest --cov=cachepot --doctest-modules --cov-report=xml"
 format = "ruff format cachepot"
 check = "ruff check cachepot"
-build = [{ cmd = "python -m build" }]
-
-[tool.mypy]
-# https://mypy.readthedocs.io/en/latest/config_file.html
-ignore_missing_imports = true
-disallow_any_decorated = true
-disallow_subclassing_any = true
-disallow_untyped_calls = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
-disallow_untyped_decorators = true
-no_implicit_optional = true
-warn_unused_ignores = true
-warn_return_any = true
+build = "python -m build"
