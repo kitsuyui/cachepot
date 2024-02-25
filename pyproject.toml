@@ -38,7 +38,7 @@ test = "pytest"
 coverage-xml = "pytest --cov=cachepot --doctest-modules --cov-report=xml"
 format = "ruff format cachepot"
 check = "ruff check cachepot"
-build = [{ cmd = "python -m build" }]
+build = "python -m build"
 
 [tool.mypy]
 # https://mypy.readthedocs.io/en/latest/config_file.html
