@@ -25,6 +25,7 @@ setuptools-scm = "*"
 build = "*"
 redis = "*"
 types-redis = "*"
+mypy = "*"
 
 [build-system]
 requires = ["setuptools", "setuptools_scm"]
@@ -37,5 +38,8 @@ write_to = "cachepot/_version.py"
 test = "pytest"
 coverage-xml = "pytest --cov=cachepot --doctest-modules --cov-report=xml"
 format = "ruff format cachepot"
-check = "ruff check cachepot"
+check = [
+    { cmd = "ruff check cachepot tests" },
+    { cmd = "mypy cachepot tests" },
+]
 build = "python -m build"

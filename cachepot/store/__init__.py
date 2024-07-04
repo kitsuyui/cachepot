@@ -11,8 +11,7 @@ S = TypeVar("S")
 
 
 class CacheStoreProtocol(Protocol[T, S]):
-    def get(self, key: T) -> Optional[S]:
-        ...
+    def get(self, key: T) -> Optional[S]: ...
 
     def put(
         self,
@@ -20,14 +19,13 @@ class CacheStoreProtocol(Protocol[T, S]):
         value: S,
         *,
         expire_seconds: Optional[ExpireSeconds] = None,
-    ) -> None:
-        ...
+    ) -> None: ...
 
-    def proxy(self, original_function: Callable[..., S]) -> Callable[..., S]:
-        ...
+    def proxy(
+        self, original_function: Callable[..., S]
+    ) -> Callable[..., S]: ...
 
-    def remove(self, key: T) -> None:
-        ...
+    def remove(self, key: T) -> None: ...
 
 
 class CacheStore(CacheStoreProtocol[T, S]):
