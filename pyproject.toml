@@ -13,7 +13,7 @@ authors = []
 packages = [{ include = "cachepot" }]
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.9"
 typing-extensions = "*"
 
 [tool.poetry.group.dev.dependencies]
