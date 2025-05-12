@@ -1,38 +1,62 @@
+[project]
+name = "cachepot"
+dynamic = ["version"]
+requires-python = ">=3.9"
+dependencies = []
+description = "Yet another Python cache library"
+readme = {file = "README.md", content-type = "text/markdown"}
+license = { file = "LICENSE" }
+authors = [
+    {name = "Yui KITSU", email = "kitsuyui+github@kitsuyui.com"}
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries",
+]
+
+[project.urls]
+Homepage = "https://github.com/kitsuyui/cachepot"
+
+[project.optional-dependencies]
+redis = [
+    "redis",
+    "types-redis",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest",
+    "pytest-cov",
+    "poethepoet",
+    "ruff",
+    "setuptools-scm",
+    "mypy",
+    "redis",
+    "types-redis",
+]
+
 [tool.ruff]
 line-length = 79
-
-[tool.poetry]
-# I use poetry as just a package manager.
-# So, I only write the settings that poetry needs.
-# The actual package metadata is written in setup.cfg.
-# I use pypa/build for packaging.
-name = "cachepot"
-version = "0.0.0"
-description = ""
-authors = []
-packages = [{ include = "cachepot" }]
-
-[tool.poetry.dependencies]
-python = "^3.9"
-typing-extensions = "*"
-
-[tool.poetry.group.dev.dependencies]
-ruff = "*"
-pytest = "*"
-pytest-cov = "*"
-poethepoet = "*"
-setuptools-scm = "*"
-build = "*"
-redis = "*"
-types-redis = "*"
-mypy = "*"
 
 [build-system]
 requires = ["setuptools", "setuptools_scm"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools]
+package-data = { "cachepot" = ["py.typed"], "*" = ["README.md, LICENSE"] }
+package-dir = { "cachepot" = "cachepot" }
+
 [tool.setuptools_scm]
 write_to = "cachepot/_version.py"
+version_scheme = "only-version"
+local_scheme = "no-local-version"
 
 [tool.poe.tasks]
 test = "pytest"
@@ -42,4 +66,3 @@ check = [
     { cmd = "ruff check cachepot tests" },
     { cmd = "mypy cachepot tests" },
 ]
-build = "python -m build"
