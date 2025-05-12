@@ -83,17 +83,17 @@ Of course you can define own backend.
 
 ## Development
 
-You can install requirements with poetry.
+You can install requirements with uv.
 
 ```shell
-$ poetry install
+$ uv sync
 ```
 
 ### Test
 
 ```shell
-$ poetry poe check  # lint and type check
-$ poetry poe test  # run tests
+$ uv run poe check  # lint and type check
+$ uv run poe test  # run tests
 ```
 
 # LICENSE
