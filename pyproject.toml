@@ -30,8 +30,8 @@ redis = [
     "types-redis",
 ]
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "pytest",
     "pytest-cov",
     "poethepoet",
