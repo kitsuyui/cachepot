@@ -4,7 +4,7 @@
 [![PyPI](https://img.shields.io/pypi/v/cachepot.svg)](https://pypi.python.org/pypi/cachepot/)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/cachepot.svg)](https://pypi.python.org/pypi/cachepot/)
 [![Lint and Test Python](https://github.com/kitsuyui/cachepot/actions/workflows/python-test.yml/badge.svg)](https://github.com/kitsuyui/cachepot/actions/workflows/python-test.yml)
-[![codecov](https://codecov.io/gh/kitsuyui/cachepot/branch/main/graph/badge.svg?token=mdzEJ8cwcB)](https://codecov.io/gh/kitsuyui/cachepot)
+![Coverage](https://raw.githubusercontent.com/kitsuyui/octocov-central/main/badges/kitsuyui/cachepot/coverage.svg)
 [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 
 Yet another Python cache library. This has Python 3 typing hints.
