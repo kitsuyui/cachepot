@@ -45,6 +45,44 @@ dev = [
 [tool.ruff]
 line-length = 79
 
+[tool.ruff.lint]
+select = [
+    "A",
+    "ANN",
+    "ARG",
+    "B",
+    "C4",
+    "C90",
+    "COM",
+    "E",
+    "F",
+    "I",
+    "PERF",
+    "PLE",
+    "PTH",
+    "RET",
+    "RUF",
+    "S",
+    "SIM",
+    "SLOT",
+    "UP",
+    "W",
+]
+ignore = [
+    "ANN401",
+    "S301",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"example/**/*.py" = [
+    "S101",
+]
+"tests/**/*.py" = [
+    "ANN",
+    "D",
+    "S101",
+]
+
 [tool.uv]
 # Source of truth:
 # https://github.com/kitsuyui/kitsuyui/wiki/Official-Information-for-Dependency-Update-Policies

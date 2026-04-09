@@ -1,4 +1,4 @@
-from typing import Optional, cast
+from typing import cast
 
 import redis
 
@@ -9,18 +9,18 @@ from cachepot.expire import ExpireSeconds, to_timedelta
 class RedisCacheBackend(CacheBackendProtocol):
     redis_connection: redis.Redis
 
-    def __init__(self, redis_connection: redis.Redis):
+    def __init__(self, redis_connection: redis.Redis) -> None:
         self.redis = redis_connection
 
     def save(
-        self, key: bytes, value: bytes, *, expire_seconds: ExpireSeconds
+        self, key: bytes, value: bytes, *, expire_seconds: ExpireSeconds,
     ) -> None:
         with self.redis.pipeline() as pipe:
             pipe.set(key, value)
             pipe.expire(key, to_timedelta(expire_seconds))
             pipe.execute()
 
-    def load(self, key: bytes) -> Optional[bytes]:
+    def load(self, key: bytes) -> bytes | None:
         return cast(bytes, self.redis.get(key))
 
     def delete(self, key: bytes) -> None:
