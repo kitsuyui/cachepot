@@ -15,7 +15,7 @@ class SimpleFileSystemCacheStore(CacheStore[str, Any]):
         namespace: str,
         *,
         directory: str = 'tmp',
-    ):
+    ) -> None:
         super().__init__(
             namespace=namespace,
             key_serializer=StringSerializer(),
@@ -33,7 +33,7 @@ class FileSystemJSONCacheStore(CacheStore[str, JSONType]):
         namespace: str,
         *,
         directory: str = 'tmp',
-    ):
+    ) -> None:
         super().__init__(
             namespace=namespace,
             key_serializer=StringSerializer(),

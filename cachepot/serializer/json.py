@@ -1,11 +1,11 @@
 import json
-from typing import Any, Dict, List, Union, cast
+from typing import Any, cast
 
 from cachepot.serializer import SerializerProtocol
 
 # JSONType = Union[str, int, float, Dict[str, JSONType], List[JSONType]]
 # https://github.com/python/typing/issues/182
-JSONType = Union[str, int, float, Dict[str, Any], List[Any]]
+JSONType = str | int | float | dict[str, Any] | list[Any]
 
 
 class JSONSerializer(SerializerProtocol[JSONType]):

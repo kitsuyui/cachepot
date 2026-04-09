@@ -1,7 +1,6 @@
 from datetime import timedelta
-from typing import Union
 
-ExpireSeconds = Union[int, float, timedelta]
+ExpireSeconds = int | float | timedelta
 
 
 def to_timedelta(expire_seconds: ExpireSeconds) -> timedelta:

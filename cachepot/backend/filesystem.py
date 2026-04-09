@@ -1,20 +1,21 @@
+import contextlib
 import hashlib
 import os
 import pathlib
 import time
 from datetime import datetime
-from typing import BinaryIO, Optional, Union, cast
+from typing import BinaryIO, cast
 
 from cachepot.backend import CacheBackendProtocol
 from cachepot.expire import ExpireSeconds, to_timedelta
 
-PathLike = Union[pathlib.Path, str]
+PathLike = pathlib.Path | str
 
 
 class FileSystemCacheBackend(CacheBackendProtocol):
     path: pathlib.Path
 
-    def __init__(self, path: PathLike):
+    def __init__(self, path: PathLike) -> None:
         if isinstance(path, str):
             self.path = pathlib.Path(path)
         else:
@@ -24,7 +25,7 @@ class FileSystemCacheBackend(CacheBackendProtocol):
         return self.path / hashlib.sha256(key).hexdigest()
 
     def save(
-        self, key: bytes, value: bytes, expire_seconds: ExpireSeconds
+        self, key: bytes, value: bytes, expire_seconds: ExpireSeconds,
     ) -> None:
         expire_at = datetime.now() + to_timedelta(expire_seconds)
         expire_timestamp = time.mktime(expire_at.timetuple())
@@ -34,7 +35,7 @@ class FileSystemCacheBackend(CacheBackendProtocol):
             f.write(value)
         os.utime(str(realpath), (expire_timestamp, expire_timestamp))
 
-    def load(self, key: bytes) -> Optional[bytes]:
+    def load(self, key: bytes) -> bytes | None:
         path = self.__get_real_path(key)
         if not path.exists() or path.is_dir():
             return None
@@ -44,7 +45,5 @@ class FileSystemCacheBackend(CacheBackendProtocol):
             return f.read()
 
     def delete(self, key: bytes) -> None:
-        try:
+        with contextlib.suppress(FileNotFoundError):
             self.__get_real_path(key).unlink()
-        except FileNotFoundError:
-            pass
