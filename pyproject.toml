@@ -83,6 +83,9 @@ ignore = [
     "S101",
 ]
 
+[tool.ruff.lint.mccabe]
+max-complexity = 2
+
 [tool.uv]
 # Source of truth:
 # https://github.com/kitsuyui/kitsuyui/wiki/Official-Information-for-Dependency-Update-Policies

@@ -83,15 +83,32 @@ class CacheStore(CacheStoreProtocol[T, S]):
             expire_seconds: ExpireSeconds | None = None,
             **kwargs: Any,
         ) -> S:
-            cached_result = self.get(cache_key)
-            if cached_result is not None:
-                return cached_result
-
-            result = original_function(*args, **kwargs)
-            self.put(cache_key, result, expire_seconds=expire_seconds)
-            return result
+            return self.__load_or_compute(
+                cache_key=cache_key,
+                expire_seconds=expire_seconds,
+                original_function=original_function,
+                args=args,
+                kwargs=kwargs,
+            )
 
         return _proxy
+
+    def __load_or_compute(
+        self,
+        *,
+        cache_key: T,
+        expire_seconds: ExpireSeconds | None,
+        original_function: Callable[..., S],
+        args: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> S:
+        cached_result = self.get(cache_key)
+        if cached_result is not None:
+            return cached_result
+
+        result = original_function(*args, **kwargs)
+        self.put(cache_key, result, expire_seconds=expire_seconds)
+        return result
 
     def remove(self, key: T) -> None:
         real_key = self.__get_real_key(key)
