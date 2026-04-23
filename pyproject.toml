@@ -84,7 +84,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.mccabe]
-max-complexity = 3
+max-complexity = 2
 
 [tool.uv]
 # Source of truth:
