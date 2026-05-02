@@ -1,5 +1,8 @@
 name: Packaging
 
+permissions:
+  contents: read
+
 on:
   pull_request:
     types: [opened, synchronize, reopened]
@@ -12,6 +15,8 @@ env:
 
 jobs:
   deploy:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
