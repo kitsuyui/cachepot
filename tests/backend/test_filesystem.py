@@ -23,6 +23,18 @@ def test_various_pathlike() -> None:
         assert cachestore.load(b"3") is None
 
 
+def test_save_creates_missing_cache_directory() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = pathlib.Path(tmpdir) / "missing-cache"
+        cachestore = FileSystemCacheBackend(cache_dir)
+
+        assert not cache_dir.exists()
+        cachestore.save(b"1", b"2", expire_seconds=1)
+
+        assert cache_dir.is_dir()
+        assert cachestore.load(b"1") == b"2"
+
+
 def test_expire() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         cachestore = FileSystemCacheBackend(pathlib.Path(tmpdir))
