@@ -31,6 +31,7 @@ class FileSystemCacheBackend(CacheBackendProtocol):
         expire_timestamp = time.mktime(expire_at.timetuple())
 
         realpath = self.__get_real_path(key)
+        realpath.parent.mkdir(parents=True, exist_ok=True)
         with cast(BinaryIO, realpath.open("wb")) as f:
             f.write(value)
         os.utime(str(realpath), (expire_timestamp, expire_timestamp))
