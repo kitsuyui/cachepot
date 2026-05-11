@@ -2,6 +2,7 @@ import contextlib
 import hashlib
 import os
 import pathlib
+import tempfile
 import time
 from datetime import datetime
 from typing import BinaryIO, cast
@@ -25,16 +26,36 @@ class FileSystemCacheBackend(CacheBackendProtocol):
         return self.path / hashlib.sha256(key).hexdigest()
 
     def save(
-        self, key: bytes, value: bytes, expire_seconds: ExpireSeconds,
+        self,
+        key: bytes,
+        value: bytes,
+        expire_seconds: ExpireSeconds,
     ) -> None:
         expire_at = datetime.now() + to_timedelta(expire_seconds)
         expire_timestamp = time.mktime(expire_at.timetuple())
 
         realpath = self.__get_real_path(key)
         realpath.parent.mkdir(parents=True, exist_ok=True)
-        with cast(BinaryIO, realpath.open("wb")) as f:
-            f.write(value)
-        os.utime(str(realpath), (expire_timestamp, expire_timestamp))
+
+        # Atomic write: stage the payload in a sibling temp file, stamp
+        # its mtime to the expiration time, then ``os.replace`` it onto
+        # the final path. A crash before the rename leaves the temp file
+        # behind but never exposes a partial or stale-mtime cache entry
+        # at the real path.
+        fd, tmpname = tempfile.mkstemp(
+            prefix=".tmp-",
+            dir=str(realpath.parent),
+        )
+        tmppath = pathlib.Path(tmpname)
+        try:
+            with cast(BinaryIO, os.fdopen(fd, "wb")) as f:
+                f.write(value)
+            os.utime(str(tmppath), (expire_timestamp, expire_timestamp))
+            tmppath.replace(realpath)
+        except BaseException:
+            with contextlib.suppress(FileNotFoundError):
+                tmppath.unlink()
+            raise
 
     def load(self, key: bytes) -> bytes | None:
         path = self.__get_real_path(key)

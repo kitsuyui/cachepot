@@ -13,12 +13,16 @@ class RedisCacheBackend(CacheBackendProtocol):
         self.redis = redis_connection
 
     def save(
-        self, key: bytes, value: bytes, *, expire_seconds: ExpireSeconds,
+        self,
+        key: bytes,
+        value: bytes,
+        *,
+        expire_seconds: ExpireSeconds,
     ) -> None:
-        with self.redis.pipeline() as pipe:
-            pipe.set(key, value)
-            pipe.expire(key, to_timedelta(expire_seconds))
-            pipe.execute()
+        # ``SET key value EX seconds`` is a single Redis command, so the
+        # value and its TTL land together. The previous pipeline form
+        # could leave the key without a TTL if EXPIRE failed after SET.
+        self.redis.set(key, value, ex=to_timedelta(expire_seconds))
 
     def load(self, key: bytes) -> bytes | None:
         return cast(bytes, self.redis.get(key))
