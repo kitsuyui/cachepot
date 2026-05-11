@@ -23,7 +23,8 @@ class CacheStoreProtocol(Protocol[T, S]):
     ) -> None: ...
 
     def proxy(
-        self, original_function: Callable[..., S],
+        self,
+        original_function: Callable[..., S],
     ) -> Callable[..., S]: ...
 
     def remove(self, key: T) -> None: ...
@@ -73,7 +74,9 @@ class CacheStore(CacheStoreProtocol[T, S]):
         real_key = self.__get_real_key(key)
         serialized_value = self.value_serializer.serialize(value)
         self.backend.save(
-            real_key, serialized_value, expire_seconds=expire_seconds,
+            real_key,
+            serialized_value,
+            expire_seconds=expire_seconds,
         )
 
     def proxy(self, original_function: Callable[..., S]) -> Callable[..., S]:
@@ -102,9 +105,13 @@ class CacheStore(CacheStoreProtocol[T, S]):
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
     ) -> S:
-        cached_result = self.get(cache_key)
-        if cached_result is not None:
-            return cached_result
+        # Inspect the backend directly so a stored ``None`` value is
+        # distinguishable from a cache miss (the backend returns ``None``
+        # only when the key is absent; a stored value is always bytes).
+        real_key = self.__get_real_key(cache_key)
+        loaded = self.backend.load(real_key)
+        if loaded is not None:
+            return self.value_serializer.deserialize(loaded)
 
         result = original_function(*args, **kwargs)
         self.put(cache_key, result, expire_seconds=expire_seconds)
