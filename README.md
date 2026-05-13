@@ -34,6 +34,11 @@ $ pip install cachepot
 >>> store.put({'some': 'short expiring key'}, {'some': 'value'}, expire_seconds=10)
 ```
 
+> **Security note**: `PickleSerializer` uses Python's `pickle` module, which can
+> execute arbitrary code during deserialization. Only use it when the cache
+> backend storage is fully under your control and trusted. For untrusted
+> environments, prefer `JsonSerializer` or `MsgpackSerializer` instead.
+
 ### Proxy method
 
 ```python
