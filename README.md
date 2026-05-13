@@ -42,7 +42,7 @@ $ pip install cachepot
 ### Proxy method
 
 ```python
-result = store.proxy(some_func)(some_args)
+result = store.proxy(some_func)(some_args, cache_key=some_arg)
 ```
 
 is the equivalent of
@@ -51,11 +51,12 @@ is the equivalent of
 result = store.get(some_arg)
 if result is None:
     result = some_func(some_args)
-    store.set(result)
+    store.put(some_arg, result)
 ```
 
 In short, this works as proxy. This helps to make codes straight forward.
-proxy method can be passed two arguments `cache_key` and `expire_seconds`.
+The proxied function requires the keyword-only argument `cache_key` and
+can also accept `expire_seconds`.
 
 ## Core idea
 

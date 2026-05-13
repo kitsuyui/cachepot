@@ -9,6 +9,7 @@ from cachepot.backend.redis import RedisCacheBackend
 def test_various_connection_like() -> None:
     r = redis.Redis(host="localhost", port=6379, db=0)
     cachestore = RedisCacheBackend(r)
+    assert cachestore.redis is r
     assert cachestore.load(b"1") is None
     cachestore.save(b"1", b"2", expire_seconds=1)
     assert cachestore.load(b"1") == b"2"

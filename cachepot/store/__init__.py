@@ -1,7 +1,5 @@
 from collections.abc import Callable
-from typing import Any, TypeVar
-
-from typing_extensions import Protocol
+from typing import Any, Protocol, TypeVar
 
 from cachepot.backend import CacheBackendProtocol
 from cachepot.expire import ExpireSeconds
@@ -9,6 +7,17 @@ from cachepot.serializer import SerializerProtocol
 
 T = TypeVar("T", contravariant=True)
 S = TypeVar("S")
+S_co = TypeVar("S_co", covariant=True)
+
+
+class CacheProxyProtocol(Protocol[T, S_co]):
+    def __call__(
+        self,
+        *args: Any,
+        cache_key: T,
+        expire_seconds: ExpireSeconds | None = None,
+        **kwargs: Any,
+    ) -> S_co: ...
 
 
 class CacheStoreProtocol(Protocol[T, S]):
@@ -25,7 +34,7 @@ class CacheStoreProtocol(Protocol[T, S]):
     def proxy(
         self,
         original_function: Callable[..., S],
-    ) -> Callable[..., S]: ...
+    ) -> CacheProxyProtocol[T, S]: ...
 
     def remove(self, key: T) -> None: ...
 
@@ -79,7 +88,10 @@ class CacheStore(CacheStoreProtocol[T, S]):
             expire_seconds=expire_seconds,
         )
 
-    def proxy(self, original_function: Callable[..., S]) -> Callable[..., S]:
+    def proxy(
+        self,
+        original_function: Callable[..., S],
+    ) -> CacheProxyProtocol[T, S]:
         def _proxy(
             *args: Any,
             cache_key: T,
