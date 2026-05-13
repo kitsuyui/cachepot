@@ -5,8 +5,26 @@ from cachepot.serializer import SerializerProtocol
 
 
 class PickleSerializer(SerializerProtocol[Any]):
+    """Pickle-based serializer.
+
+    Warning:
+        ``pickle`` can execute arbitrary code during deserialization.
+        Only use this serializer with cache backends whose storage you fully
+        control and trust. Never deserialize data received from untrusted
+        sources (e.g. shared caches, user-supplied input).
+        Consider :class:`cachepot.serializer.json.JsonSerializer` or
+        :class:`cachepot.serializer.msgpack.MsgpackSerializer` for
+        untrusted environments.
+    """
+
     def serialize(self, data: Any) -> bytes:
         return pickle.dumps(data)
 
     def deserialize(self, serialized_data: bytes) -> Any:
-        return pickle.loads(serialized_data)
+        """Deserialize bytes produced by :meth:`serialize`.
+
+        Warning:
+            Calls ``pickle.loads``, which can execute arbitrary code.
+            Only pass data from trusted sources.
+        """
+        return pickle.loads(serialized_data)  # noqa: S301
