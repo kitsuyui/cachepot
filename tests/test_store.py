@@ -1,5 +1,8 @@
+import concurrent.futures
+import functools
 import tempfile
 import time
+from collections.abc import Callable
 from typing import TYPE_CHECKING, cast
 
 import pytest
@@ -21,7 +24,6 @@ if TYPE_CHECKING:
 
 def test_basis() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
-
         cachestore = CacheStore(
             namespace="testing",
             key_serializer=StringSerializer(),
@@ -66,6 +68,52 @@ def test_proxy_caches_none_return_value() -> None:
         assert proxied(cache_key="none-key") is None
         assert proxied(cache_key="none-key") is None
         assert call_count == 1
+
+
+class _CountingFunction:
+    def __init__(self) -> None:
+        self.call_count = 0
+
+    def __call__(self) -> int:
+        self.call_count += 1
+        time.sleep(0.05)
+        return 42
+
+
+def _invoke(fn: Callable[[], int]) -> int:
+    return fn()
+
+
+def _run_concurrent(fn: Callable[[], int], n: int) -> list[int]:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=n) as pool:
+        return list(pool.map(_invoke, [fn] * n))
+
+
+def test_proxy_no_double_execution_under_concurrency() -> None:
+    """Concurrent cache misses on the same key must not execute the
+    original function more than once.
+
+    All workers start simultaneously; the first acquires the store lock,
+    computes the result (with a brief sleep so others block on the lock),
+    stores it, then releases.  The remaining workers find a cache hit and
+    return without re-executing the function.
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        store = CacheStore(
+            namespace="testing",
+            key_serializer=StringSerializer(),
+            value_serializer=PickleSerializer(),
+            backend=FileSystemCacheBackend(tmpdir),
+            default_expire_seconds=60,
+        )
+        fn = _CountingFunction()
+        proxied = functools.partial(
+            store.proxy(fn),
+            cache_key="concurrent-key",
+        )
+        results = _run_concurrent(proxied, 8)
+        assert fn.call_count == 1
+        assert results == [42] * 8
 
 
 def test_proxy_requires_cache_key_at_runtime() -> None:
