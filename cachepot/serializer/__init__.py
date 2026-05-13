@@ -1,6 +1,4 @@
-from typing import TypeVar
-
-from typing_extensions import Protocol
+from typing import Protocol, TypeVar
 
 T = TypeVar("T")
 
