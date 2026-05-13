@@ -1,15 +1,15 @@
 from typing import cast
 
-import redis
+from redis import Redis
 
 from cachepot.backend import CacheBackendProtocol
 from cachepot.expire import ExpireSeconds, to_timedelta
 
 
 class RedisCacheBackend(CacheBackendProtocol):
-    redis_connection: redis.Redis
+    redis: Redis
 
-    def __init__(self, redis_connection: redis.Redis) -> None:
+    def __init__(self, redis_connection: Redis) -> None:
         self.redis = redis_connection
 
     def save(
