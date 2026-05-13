@@ -29,6 +29,7 @@ class FileSystemCacheBackend(CacheBackendProtocol):
         self,
         key: bytes,
         value: bytes,
+        *,
         expire_seconds: ExpireSeconds,
     ) -> None:
         expire_at = datetime.now() + to_timedelta(expire_seconds)
