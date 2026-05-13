@@ -1,5 +1,6 @@
 import pathlib
 import sqlite3
+import threading
 from datetime import datetime
 from typing import cast
 
@@ -11,10 +12,12 @@ ConnectionLike = str | pathlib.Path | sqlite3.Connection
 
 class SQLiteCacheBackend(CacheBackendProtocol):
     conn: sqlite3.Connection
+    _lock: threading.Lock
 
     def __init__(self, conn: ConnectionLike) -> None:
         if isinstance(conn, (str, pathlib.Path)):
-            conn = sqlite3.connect(conn)
+            conn = sqlite3.connect(conn, check_same_thread=False)
+        self._lock = threading.Lock()
         conn.text_factory = bytes
         conn.execute(
             """\
@@ -38,35 +41,38 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_cachepot
         self, key: bytes, value: bytes, *, expire_seconds: ExpireSeconds,
     ) -> None:
         expire_at = datetime.now() + to_timedelta(expire_seconds)
-        self.conn.execute(
-            """\
+        with self._lock:
+            self.conn.execute(
+                """\
 INSERT OR REPLACE INTO cachepot
             (key, value, expire_at)
      VALUES (?, ?, ?)""",
-            (key, value, expire_at),
-        )
-        self.conn.commit()
+                (key, value, expire_at),
+            )
+            self.conn.commit()
 
     def load(self, key: bytes) -> bytes | None:
         current_datetime = datetime.now()
-        result = self.conn.execute(
-            """\
+        with self._lock:
+            result = self.conn.execute(
+                """\
         SELECT value
           FROM cachepot
          WHERE key = ?
            AND expire_at > ?""",
-            (key, current_datetime),
-        ).fetchone()
+                (key, current_datetime),
+            ).fetchone()
         if result:
             return cast(bytes, result[0])
         return None
 
     def delete(self, key: bytes) -> None:
-        self.conn.execute(
-            """\
+        with self._lock:
+            self.conn.execute(
+                """\
         DELETE
           FROM cachepot
          WHERE key = ?""",
-            (key,),
-        )
-        self.conn.commit()
+                (key,),
+            )
+            self.conn.commit()
