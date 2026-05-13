@@ -1,7 +1,5 @@
 from collections.abc import Callable
-from typing import Any, TypeVar
-
-from typing_extensions import Protocol
+from typing import Any, Protocol, TypeVar
 
 from cachepot.backend import CacheBackendProtocol
 from cachepot.expire import ExpireSeconds
