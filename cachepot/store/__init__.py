@@ -1,3 +1,4 @@
+import threading
 from collections.abc import Callable
 from typing import Any, TypeVar
 
@@ -50,6 +51,7 @@ class CacheStore(CacheStoreProtocol[T, S]):
         self.value_serializer = value_serializer
         self.backend = backend
         self.default_expire_seconds = default_expire_seconds
+        self._lock = threading.Lock()
 
     def __get_real_key(self, key: T) -> bytes:
         serialized_key = self.key_serializer.serialize(key)
@@ -109,13 +111,14 @@ class CacheStore(CacheStoreProtocol[T, S]):
         # distinguishable from a cache miss (the backend returns ``None``
         # only when the key is absent; a stored value is always bytes).
         real_key = self.__get_real_key(cache_key)
-        loaded = self.backend.load(real_key)
-        if loaded is not None:
-            return self.value_serializer.deserialize(loaded)
+        with self._lock:
+            loaded = self.backend.load(real_key)
+            if loaded is not None:
+                return self.value_serializer.deserialize(loaded)
 
-        result = original_function(*args, **kwargs)
-        self.put(cache_key, result, expire_seconds=expire_seconds)
-        return result
+            result = original_function(*args, **kwargs)
+            self.put(cache_key, result, expire_seconds=expire_seconds)
+            return result
 
     def remove(self, key: T) -> None:
         real_key = self.__get_real_key(key)
