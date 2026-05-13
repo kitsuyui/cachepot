@@ -35,7 +35,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_cachepot
         self.conn = conn
 
     def save(
-        self, key: bytes, value: bytes, *, expire_seconds: ExpireSeconds,
+        self,
+        key: bytes,
+        value: bytes,
+        *,
+        expire_seconds: ExpireSeconds,
     ) -> None:
         expire_at = datetime.now() + to_timedelta(expire_seconds)
         self.conn.execute(
@@ -70,3 +74,15 @@ INSERT OR REPLACE INTO cachepot
             (key,),
         )
         self.conn.commit()
+
+    def delete_expired(self) -> int:
+        """Delete all expired rows and return the number of deleted rows."""
+        cur = self.conn.execute(
+            """\
+        DELETE
+          FROM cachepot
+         WHERE expire_at <= ?""",
+            (datetime.now(),),
+        )
+        self.conn.commit()
+        return cur.rowcount
