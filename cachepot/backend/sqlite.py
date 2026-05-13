@@ -80,3 +80,16 @@ INSERT OR REPLACE INTO cachepot
                 (key,),
             )
             self.conn.commit()
+
+    def delete_expired(self) -> int:
+        """Delete all expired rows and return the number of deleted rows."""
+        with self._lock:
+            cur = self.conn.execute(
+                """\
+        DELETE
+          FROM cachepot
+         WHERE expire_at <= ?""",
+                (datetime.now(),),
+            )
+            self.conn.commit()
+        return cur.rowcount

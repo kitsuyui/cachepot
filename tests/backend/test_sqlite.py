@@ -33,6 +33,28 @@ def test_expire() -> None:
         assert cachestore.load(b"1") is None
 
 
+def test_delete_expired() -> None:
+    with tempfile.NamedTemporaryFile() as f:
+        cachestore = SQLiteCacheBackend(f.name)
+        cachestore.save(b"expired", b"value", expire_seconds=1)
+        cachestore.save(b"live", b"value", expire_seconds=60)
+
+        time.sleep(2)
+
+        # expired row is filtered by load() but still physically present
+        assert cachestore.load(b"expired") is None
+        assert cachestore.load(b"live") == b"value"
+
+        deleted = cachestore.delete_expired()
+        assert deleted == 1
+
+        # live row is unaffected
+        assert cachestore.load(b"live") == b"value"
+
+        # calling again with nothing expired returns 0
+        assert cachestore.delete_expired() == 0
+
+
 def _thread_worker(cachestore: SQLiteCacheBackend, i: int) -> None:
     key = str(i).encode()
     cachestore.save(key, key, expire_seconds=10)
