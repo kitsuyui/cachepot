@@ -3,11 +3,23 @@ import functools
 import tempfile
 import time
 from collections.abc import Callable
+from typing import TYPE_CHECKING, cast
+
+import pytest
+from typing_extensions import assert_type
 
 from cachepot.backend.filesystem import FileSystemCacheBackend
 from cachepot.serializer.pickle import PickleSerializer
 from cachepot.serializer.str import StringSerializer
-from cachepot.store import CacheStore
+from cachepot.store import CacheProxyProtocol, CacheStore
+
+if TYPE_CHECKING:
+    typed_proxy = cast(CacheProxyProtocol[str, int], None)
+    assert_type(typed_proxy(1, cache_key="key"), int)
+
+    typed_store = cast(CacheStore[str, int], None)
+    proxied_increment = typed_store.proxy(lambda value: value + 1)
+    assert_type(proxied_increment(1, cache_key="key"), int)
 
 
 def test_basis() -> None:
@@ -102,3 +114,18 @@ def test_proxy_no_double_execution_under_concurrency() -> None:
         results = _run_concurrent(proxied, 8)
         assert fn.call_count == 1
         assert results == [42] * 8
+
+
+def test_proxy_requires_cache_key_at_runtime() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cachestore = CacheStore(
+            namespace="testing",
+            key_serializer=StringSerializer(),
+            value_serializer=PickleSerializer(),
+            backend=FileSystemCacheBackend(tmpdir),
+            default_expire_seconds=60,
+        )
+
+        proxied = cachestore.proxy(lambda: 3)
+        with pytest.raises(TypeError, match="cache_key"):
+            proxied()  # type: ignore[call-arg]
