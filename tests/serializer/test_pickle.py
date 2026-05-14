@@ -1,6 +1,7 @@
+import pickle
 from dataclasses import dataclass
 
-from cachepot.serializer.pickle import PickleSerializer
+from cachepot.serializer.pickle import PICKLE_PROTOCOL, PickleSerializer
 
 
 @dataclass
@@ -24,3 +25,12 @@ def test_pickle_serializer() -> None:
         serialized = serializer.serialize(original)
         deserialized = serializer.deserialize(serialized)
         assert deserialized == original
+
+
+def test_pickle_serializer_uses_stable_protocol() -> None:
+    serializer = PickleSerializer()
+
+    assert serializer.serialize("key") == pickle.dumps(
+        "key",
+        protocol=PICKLE_PROTOCOL,
+    )

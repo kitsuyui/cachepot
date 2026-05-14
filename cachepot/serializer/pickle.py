@@ -3,6 +3,8 @@ from typing import Any
 
 from cachepot.serializer import SerializerProtocol
 
+PICKLE_PROTOCOL = 4
+
 
 class PickleSerializer(SerializerProtocol[Any]):
     """Pickle-based serializer.
@@ -18,7 +20,7 @@ class PickleSerializer(SerializerProtocol[Any]):
     """
 
     def serialize(self, data: Any) -> bytes:
-        return pickle.dumps(data)
+        return pickle.dumps(data, protocol=PICKLE_PROTOCOL)
 
     def deserialize(self, serialized_data: bytes) -> Any:
         """Deserialize bytes produced by :meth:`serialize`.
