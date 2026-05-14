@@ -60,7 +60,7 @@ class CacheStore(CacheStoreProtocol[T, S]):
         self.value_serializer = value_serializer
         self.backend = backend
         self.default_expire_seconds = default_expire_seconds
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
 
     def __get_real_key(self, key: T) -> bytes:
         serialized_key = self.key_serializer.serialize(key)

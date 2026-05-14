@@ -116,6 +116,34 @@ def test_proxy_no_double_execution_under_concurrency() -> None:
         assert results == [42] * 8
 
 
+def _returns_seven() -> int:
+    return 7
+
+
+def test_proxy_nested_same_store_does_not_deadlock() -> None:
+    """A proxy whose original function calls another proxy on the same store
+    must not deadlock.  Previously this failed because the store used a
+    non-reentrant Lock and the inner proxy tried to re-acquire it from the
+    same thread while the outer one held it.
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        store = CacheStore(
+            namespace="testing",
+            key_serializer=StringSerializer(),
+            value_serializer=PickleSerializer(),
+            backend=FileSystemCacheBackend(tmpdir),
+            default_expire_seconds=60,
+        )
+        inner_proxied = store.proxy(_returns_seven)
+
+        def outer() -> int:
+            return inner_proxied(cache_key="inner-key") + 1
+
+        outer_proxied = store.proxy(outer)
+        assert outer_proxied(cache_key="outer-key") == 8
+        assert outer_proxied(cache_key="outer-key") == 8
+
+
 def test_proxy_requires_cache_key_at_runtime() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         cachestore = CacheStore(
