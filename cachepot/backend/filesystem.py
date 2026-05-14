@@ -60,10 +60,12 @@ class FileSystemCacheBackend(CacheBackendProtocol):
 
     def load(self, key: bytes) -> bytes | None:
         path = self.__get_real_path(key)
-        if not self.__can_load(path):
-            return None
-        with cast(BinaryIO, path.open("rb")) as f:
-            return f.read()
+        with contextlib.suppress(FileNotFoundError):
+            if not self.__can_load(path):
+                return None
+            with cast(BinaryIO, path.open("rb")) as f:
+                return f.read()
+        return None
 
     def __can_load(self, path: pathlib.Path) -> bool:
         return path.is_file() and not self.__is_expired(path)
