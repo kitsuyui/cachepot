@@ -2,6 +2,7 @@ import pathlib
 import sqlite3
 import threading
 from datetime import datetime
+from types import TracebackType
 from typing import cast
 
 from cachepot.backend import CacheBackendProtocol
@@ -36,6 +37,21 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_cachepot
                   )""",
         )
         self.conn = conn
+
+    def close(self) -> None:
+        with self._lock:
+            self.conn.close()
+
+    def __enter__(self) -> "SQLiteCacheBackend":
+        return self
+
+    def __exit__(
+        self,
+        _exc_type: type[BaseException] | None,
+        _exc: BaseException | None,
+        _traceback: TracebackType | None,
+    ) -> None:
+        self.close()
 
     def save(
         self,
