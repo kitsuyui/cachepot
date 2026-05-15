@@ -24,6 +24,8 @@ class CacheProxyProtocol(Protocol[T, S_co]):
 class CacheStoreProtocol(Protocol[T, S]):
     def get(self, key: T) -> S | None: ...
 
+    def has(self, key: T) -> bool: ...
+
     def put(
         self,
         key: T,
@@ -73,6 +75,10 @@ class CacheStore(CacheStoreProtocol[T, S]):
         if loaded is None:
             return None
         return self.value_serializer.deserialize(loaded)
+
+    def has(self, key: T) -> bool:
+        real_key = self.__get_real_key(key)
+        return self.backend.load(real_key) is not None
 
     def put(
         self,
