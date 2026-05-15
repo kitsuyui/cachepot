@@ -64,7 +64,8 @@ class CacheStore(CacheStoreProtocol[T, S]):
 
     def __get_real_key(self, key: T) -> bytes:
         serialized_key = self.key_serializer.serialize(key)
-        return self.namespace.encode() + b":" + serialized_key
+        ns_bytes = self.namespace.encode()
+        return len(ns_bytes).to_bytes(4, "big") + ns_bytes + serialized_key
 
     def get(self, key: T) -> S | None:
         real_key = self.__get_real_key(key)
