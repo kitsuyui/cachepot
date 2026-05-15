@@ -1,7 +1,10 @@
 import concurrent.futures
 import pathlib
+import sqlite3
 import tempfile
 import time
+
+import pytest
 
 from cachepot.backend.sqlite import SQLiteCacheBackend
 
@@ -22,6 +25,26 @@ def test_sqlite_connection() -> None:
         assert cachestore.load(b"3") == b"4"
         cachestore.delete(b"3")
         assert cachestore.load(b"3") is None
+
+
+def test_sqlite_close_closes_connection() -> None:
+    with tempfile.NamedTemporaryFile() as f:
+        cachestore = SQLiteCacheBackend(f.name)
+        cachestore.save(b"1", b"2", expire_seconds=1)
+        cachestore.close()
+
+        with pytest.raises(sqlite3.ProgrammingError):
+            cachestore.load(b"1")
+
+
+def test_sqlite_context_manager_closes_connection() -> None:
+    with tempfile.NamedTemporaryFile() as f:
+        with SQLiteCacheBackend(f.name) as cachestore:
+            cachestore.save(b"1", b"2", expire_seconds=1)
+            assert cachestore.load(b"1") == b"2"
+
+        with pytest.raises(sqlite3.ProgrammingError):
+            cachestore.load(b"1")
 
 
 def test_expire() -> None:
