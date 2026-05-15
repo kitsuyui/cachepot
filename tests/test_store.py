@@ -144,6 +144,28 @@ def test_proxy_nested_same_store_does_not_deadlock() -> None:
         assert outer_proxied(cache_key="outer-key") == 8
 
 
+def test_namespace_key_no_collision() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        store_a = CacheStore(
+            namespace="a",
+            key_serializer=StringSerializer(),
+            value_serializer=PickleSerializer(),
+            backend=FileSystemCacheBackend(tmpdir),
+            default_expire_seconds=60,
+        )
+        store_ab = CacheStore(
+            namespace="a:b",
+            key_serializer=StringSerializer(),
+            value_serializer=PickleSerializer(),
+            backend=FileSystemCacheBackend(tmpdir),
+            default_expire_seconds=60,
+        )
+        store_a.put("b:c", 1)
+        store_ab.put("c", 2)
+        assert store_a.get("b:c") == 1
+        assert store_ab.get("c") == 2
+
+
 def test_proxy_requires_cache_key_at_runtime() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         cachestore = CacheStore(
