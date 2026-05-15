@@ -1,10 +1,38 @@
+import hashlib
 import pathlib
 import tempfile
 import time
 from datetime import datetime
+from typing import BinaryIO, TextIO, cast
+
+import pytest
 
 from cachepot.backend.filesystem import FileSystemCacheBackend
 from cachepot.expire import to_timedelta
+
+_ORIGINAL_PATH_OPEN = pathlib.Path.open
+
+
+def _unlink_before_open(
+    self: pathlib.Path,
+    mode: str = "r",
+    buffering: int = -1,
+    encoding: str | None = None,
+    errors: str | None = None,
+    newline: str | None = None,
+) -> BinaryIO | TextIO:
+    self.unlink()
+    return cast(
+        BinaryIO | TextIO,
+        _ORIGINAL_PATH_OPEN(
+            self,
+            mode=mode,
+            buffering=buffering,
+            encoding=encoding,
+            errors=errors,
+            newline=newline,
+        ),
+    )
 
 
 def test_various_pathlike() -> None:
@@ -44,6 +72,22 @@ def test_expire() -> None:
         assert cachestore.load(b"1") == b"2"
         time.sleep(2)
         assert cachestore.load(b"1") is None
+
+
+def test_load_returns_none_when_entry_disappears_before_open(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = pathlib.Path(tmpdir)
+        cachestore = FileSystemCacheBackend(cache_dir)
+        key = b"race"
+        cachestore.save(key, b"value", expire_seconds=60)
+        realpath = cache_dir / hashlib.sha256(key).hexdigest()
+        assert realpath.exists()
+
+        monkeypatch.setattr(pathlib.Path, "open", _unlink_before_open)
+
+        assert cachestore.load(key) is None
 
 
 def test_save_leaves_no_temp_files() -> None:
