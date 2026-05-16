@@ -45,6 +45,25 @@ def test_basis() -> None:
         assert cachestore.proxy(lambda: 3)(cache_key="y") == 3
 
 
+def test_has_distinguishes_miss_from_stored_none() -> None:
+    """has() returns False on miss and True on hit, even when the stored value
+    is None — a distinction that get() cannot express."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        store: CacheStore[str, None] = CacheStore(
+            namespace="testing",
+            key_serializer=StringSerializer(),
+            value_serializer=PickleSerializer(),
+            backend=FileSystemCacheBackend(tmpdir),
+            default_expire_seconds=60,
+        )
+        assert not store.has("k")
+        store.put("k", None)
+        assert store.has("k")
+        assert store.get("k") is None
+        store.remove("k")
+        assert not store.has("k")
+
+
 def test_proxy_caches_none_return_value() -> None:
     """A function whose result is ``None`` must only be executed once
     per cached call, even though ``None`` is also the sentinel the
