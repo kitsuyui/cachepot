@@ -41,6 +41,8 @@ class CacheStoreProtocol(Protocol[T, S]):
 
     def remove(self, key: T) -> None: ...
 
+    def delete_expired(self) -> int: ...
+
 
 class CacheStore(CacheStoreProtocol[T, S]):
     namespace: str
@@ -142,3 +144,6 @@ class CacheStore(CacheStoreProtocol[T, S]):
     def remove(self, key: T) -> None:
         real_key = self.__get_real_key(key)
         self.backend.delete(real_key)
+
+    def delete_expired(self) -> int:
+        return self.backend.delete_expired()

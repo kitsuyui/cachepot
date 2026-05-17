@@ -1,4 +1,5 @@
 import hashlib
+import os
 import pathlib
 import tempfile
 import time
@@ -11,6 +12,15 @@ from cachepot.backend.filesystem import FileSystemCacheBackend
 from cachepot.expire import to_timedelta
 
 _ORIGINAL_PATH_OPEN = pathlib.Path.open
+
+
+def _cache_entry_path(cache_dir: pathlib.Path, key: bytes) -> pathlib.Path:
+    return cache_dir / hashlib.sha256(key).hexdigest()
+
+
+def _mark_expired(path: pathlib.Path) -> None:
+    expired_at = time.time() - 60
+    os.utime(path, (expired_at, expired_at))
 
 
 def _unlink_before_open(
@@ -82,7 +92,7 @@ def test_load_returns_none_when_entry_disappears_before_open(
         cachestore = FileSystemCacheBackend(cache_dir)
         key = b"race"
         cachestore.save(key, b"value", expire_seconds=60)
-        realpath = cache_dir / hashlib.sha256(key).hexdigest()
+        realpath = _cache_entry_path(cache_dir, key)
         assert realpath.exists()
 
         monkeypatch.setattr(pathlib.Path, "open", _unlink_before_open)
@@ -121,3 +131,36 @@ def test_save_sets_expiration_mtime_on_overwrite() -> None:
         ).timestamp()
         assert entry.stat().st_mtime >= future_threshold
         assert cachestore.load(b"k") == b"new"
+
+
+def test_load_deletes_expired_entry() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = pathlib.Path(tmpdir)
+        cachestore = FileSystemCacheBackend(cache_dir)
+        key = b"expired"
+        cachestore.save(key, b"value", expire_seconds=60)
+        realpath = _cache_entry_path(cache_dir, key)
+        _mark_expired(realpath)
+
+        assert realpath.exists()
+        assert cachestore.load(key) is None
+        assert not realpath.exists()
+
+
+def test_delete_expired() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = pathlib.Path(tmpdir)
+        cachestore = FileSystemCacheBackend(cache_dir)
+        cachestore.save(b"expired", b"value", expire_seconds=60)
+        cachestore.save(b"live", b"value", expire_seconds=60)
+        expired_path = _cache_entry_path(cache_dir, b"expired")
+        live_path = _cache_entry_path(cache_dir, b"live")
+        _mark_expired(expired_path)
+
+        deleted = cachestore.delete_expired()
+
+        assert deleted == 1
+        assert not expired_path.exists()
+        assert live_path.exists()
+        assert cachestore.load(b"live") == b"value"
+        assert cachestore.delete_expired() == 0

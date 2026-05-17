@@ -29,3 +29,6 @@ class RedisCacheBackend(CacheBackendProtocol):
 
     def delete(self, key: bytes) -> None:
         self.redis.delete(key)
+
+    def delete_expired(self) -> int:
+        return 0

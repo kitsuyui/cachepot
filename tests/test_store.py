@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     typed_store = cast(CacheStore[str, int], None)
     proxied_increment = typed_store.proxy(lambda value: value + 1)
     assert_type(proxied_increment(1, cache_key="key"), int)
+    assert_type(typed_store.delete_expired(), int)
 
 
 def test_basis() -> None:
@@ -62,6 +63,26 @@ def test_has_distinguishes_miss_from_stored_none() -> None:
         assert store.get("k") is None
         store.remove("k")
         assert not store.has("k")
+
+
+def test_delete_expired() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        store = CacheStore(
+            namespace="testing",
+            key_serializer=StringSerializer(),
+            value_serializer=PickleSerializer(),
+            backend=FileSystemCacheBackend(tmpdir),
+            default_expire_seconds=1,
+        )
+        store.put("expired", 1)
+        store.put("live", 2, expire_seconds=60)
+
+        time.sleep(2)
+
+        assert store.delete_expired() == 1
+        assert store.get("expired") is None
+        assert store.get("live") == 2
+        assert store.delete_expired() == 0
 
 
 def test_proxy_caches_none_return_value() -> None:

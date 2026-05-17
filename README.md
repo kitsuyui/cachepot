@@ -32,6 +32,8 @@ $ pip install cachepot
 >>> store.get({'some': 'key'})
 {'some': 'value'}
 >>> store.put({'some': 'short expiring key'}, {'some': 'value'}, expire_seconds=10)
+>>> store.delete_expired()
+0
 ```
 
 > **Security note**: `PickleSerializer` uses Python's `pickle` module, which can
@@ -68,6 +70,7 @@ CacheStore is the facade of them.
 - Python3 typing supports
 - namespaces
 - Proxy method
+- Expired entry cleanup
 
 ## Features
 
