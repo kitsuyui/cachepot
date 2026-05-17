@@ -68,7 +68,7 @@ class FileSystemCacheBackend(CacheBackendProtocol):
         return None
 
     def __can_load(self, path: pathlib.Path) -> bool:
-        return path.is_file() and not self.__is_expired(path)
+        return path.is_file() and not self.__delete_if_expired(path)
 
     def __is_expired(self, path: pathlib.Path) -> bool:
         return path.stat().st_mtime < time.mktime(datetime.now().timetuple())
@@ -76,3 +76,23 @@ class FileSystemCacheBackend(CacheBackendProtocol):
     def delete(self, key: bytes) -> None:
         with contextlib.suppress(FileNotFoundError):
             self.__get_real_path(key).unlink()
+
+    def delete_expired(self) -> int:
+        with contextlib.suppress(FileNotFoundError):
+            return sum(
+                1
+                for path in self.path.iterdir()
+                if self.__delete_file_if_expired(path)
+            )
+        return 0
+
+    def __delete_file_if_expired(self, path: pathlib.Path) -> bool:
+        with contextlib.suppress(FileNotFoundError):
+            return path.is_file() and self.__delete_if_expired(path)
+        return False
+
+    def __delete_if_expired(self, path: pathlib.Path) -> bool:
+        if self.__is_expired(path):
+            path.unlink()
+            return True
+        return False
