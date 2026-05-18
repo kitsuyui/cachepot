@@ -115,6 +115,25 @@ def test_save_expiration_starts_after_lock_acquisition(
         assert cachestore.load(b"delayed") == b"value"
 
 
+def test_exists() -> None:
+    with tempfile.NamedTemporaryFile() as f:
+        cachestore = SQLiteCacheBackend(f.name)
+        assert not cachestore.exists(b"k")
+        cachestore.save(b"k", b"v", expire_seconds=60)
+        assert cachestore.exists(b"k")
+        cachestore.delete(b"k")
+        assert not cachestore.exists(b"k")
+
+
+def test_exists_does_not_return_true_for_expired() -> None:
+    with tempfile.NamedTemporaryFile() as f:
+        cachestore = SQLiteCacheBackend(f.name)
+        cachestore.save(b"k", b"v", expire_seconds=1)
+        assert cachestore.exists(b"k")
+        time.sleep(2)
+        assert not cachestore.exists(b"k")
+
+
 def _thread_worker(cachestore: SQLiteCacheBackend, i: int) -> None:
     key = str(i).encode()
     cachestore.save(key, key, expire_seconds=10)

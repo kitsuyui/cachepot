@@ -3,7 +3,7 @@ from typing import cast
 from redis import Redis
 
 from cachepot.backend import CacheBackendProtocol
-from cachepot.expire import ExpireSeconds, to_timedelta
+from cachepot.expire import Expiry, to_timedelta
 
 
 class RedisCacheBackend(CacheBackendProtocol):
@@ -17,7 +17,7 @@ class RedisCacheBackend(CacheBackendProtocol):
         key: bytes,
         value: bytes,
         *,
-        expire_seconds: ExpireSeconds,
+        expire_seconds: Expiry,
     ) -> None:
         # ``SET key value EX seconds`` is a single Redis command, so the
         # value and its TTL land together. The previous pipeline form
@@ -26,6 +26,9 @@ class RedisCacheBackend(CacheBackendProtocol):
 
     def load(self, key: bytes) -> bytes | None:
         return cast(bytes, self.redis.get(key))
+
+    def exists(self, key: bytes) -> bool:
+        return bool(self.redis.exists(key))
 
     def delete(self, key: bytes) -> None:
         self.redis.delete(key)

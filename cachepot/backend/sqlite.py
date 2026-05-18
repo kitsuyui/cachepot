@@ -6,7 +6,7 @@ from types import TracebackType
 from typing import cast
 
 from cachepot.backend import CacheBackendProtocol
-from cachepot.expire import ExpireSeconds, to_timedelta
+from cachepot.expire import Expiry, to_timedelta
 
 ConnectionLike = str | pathlib.Path | sqlite3.Connection
 
@@ -58,7 +58,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_cachepot
         key: bytes,
         value: bytes,
         *,
-        expire_seconds: ExpireSeconds,
+        expire_seconds: Expiry,
     ) -> None:
         with self._lock:
             expire_at = datetime.now() + to_timedelta(expire_seconds)
@@ -85,6 +85,19 @@ INSERT OR REPLACE INTO cachepot
         if result:
             return cast(bytes, result[0])
         return None
+
+    def exists(self, key: bytes) -> bool:
+        current_datetime = datetime.now()
+        with self._lock:
+            result = self.conn.execute(
+                """\
+        SELECT 1
+          FROM cachepot
+         WHERE key = ?
+           AND expire_at > ?""",
+                (key, current_datetime),
+            ).fetchone()
+        return result is not None
 
     def delete(self, key: bytes) -> None:
         with self._lock:

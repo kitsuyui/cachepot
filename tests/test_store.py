@@ -34,7 +34,7 @@ def test_basis() -> None:
         )
         cachestore.put("x", 1)
         assert cachestore.get("x") == 1
-        cachestore.remove("x")
+        cachestore.delete("x")
         assert cachestore.get("x") is None
         assert cachestore.proxy(lambda: 3)(cache_key="y") == 3
         assert cachestore.proxy(lambda: 3)(cache_key="y") == 3
@@ -61,7 +61,7 @@ def test_has_distinguishes_miss_from_stored_none() -> None:
         store.put("k", None)
         assert store.has("k")
         assert store.get("k") is None
-        store.remove("k")
+        store.delete("k")
         assert not store.has("k")
 
 

@@ -1,6 +1,6 @@
 from typing import Protocol
 
-from cachepot.expire import ExpireSeconds
+from cachepot.expire import Expiry
 
 
 class CacheBackendProtocol(Protocol):
@@ -9,10 +9,12 @@ class CacheBackendProtocol(Protocol):
         key: bytes,
         value: bytes,
         *,
-        expire_seconds: ExpireSeconds,
+        expire_seconds: Expiry,
     ) -> None: ...
 
     def load(self, key: bytes) -> bytes | None: ...
+
+    def exists(self, key: bytes) -> bool: ...
 
     def delete(self, key: bytes) -> None: ...
 

@@ -3,7 +3,7 @@ from collections.abc import Callable
 from typing import Any, Protocol, TypeVar
 
 from cachepot.backend import CacheBackendProtocol
-from cachepot.expire import ExpireSeconds
+from cachepot.expire import Expiry
 from cachepot.serializer import SerializerProtocol
 
 T = TypeVar("T", contravariant=True)
@@ -16,7 +16,7 @@ class CacheProxyProtocol(Protocol[T, S_co]):
         self,
         *args: Any,
         cache_key: T,
-        expire_seconds: ExpireSeconds | None = None,
+        expire_seconds: Expiry | None = None,
         **kwargs: Any,
     ) -> S_co: ...
 
@@ -31,7 +31,7 @@ class CacheStoreProtocol(Protocol[T, S]):
         key: T,
         value: S,
         *,
-        expire_seconds: ExpireSeconds | None = None,
+        expire_seconds: Expiry | None = None,
     ) -> None: ...
 
     def proxy(
@@ -39,7 +39,7 @@ class CacheStoreProtocol(Protocol[T, S]):
         original_function: Callable[..., S],
     ) -> CacheProxyProtocol[T, S]: ...
 
-    def remove(self, key: T) -> None: ...
+    def delete(self, key: T) -> None: ...
 
     def delete_expired(self) -> int: ...
 
@@ -49,7 +49,7 @@ class CacheStore(CacheStoreProtocol[T, S]):
     key_serializer: SerializerProtocol[T]
     value_serializer: SerializerProtocol[S]
     backend: CacheBackendProtocol
-    default_expire_seconds: ExpireSeconds
+    default_expire_seconds: Expiry
 
     def __init__(
         self,
@@ -57,7 +57,7 @@ class CacheStore(CacheStoreProtocol[T, S]):
         backend: CacheBackendProtocol,
         key_serializer: SerializerProtocol[T],
         value_serializer: SerializerProtocol[S],
-        default_expire_seconds: ExpireSeconds,
+        default_expire_seconds: Expiry,
     ) -> None:
         self.namespace = namespace
         self.key_serializer = key_serializer
@@ -80,14 +80,14 @@ class CacheStore(CacheStoreProtocol[T, S]):
 
     def has(self, key: T) -> bool:
         real_key = self.__get_real_key(key)
-        return self.backend.load(real_key) is not None
+        return self.backend.exists(real_key)
 
     def put(
         self,
         key: T,
         value: S,
         *,
-        expire_seconds: ExpireSeconds | None = None,
+        expire_seconds: Expiry | None = None,
     ) -> None:
         if expire_seconds is None:
             expire_seconds = self.default_expire_seconds
@@ -106,7 +106,7 @@ class CacheStore(CacheStoreProtocol[T, S]):
         def _proxy(
             *args: Any,
             cache_key: T,
-            expire_seconds: ExpireSeconds | None = None,
+            expire_seconds: Expiry | None = None,
             **kwargs: Any,
         ) -> S:
             return self.__load_or_compute(
@@ -123,7 +123,7 @@ class CacheStore(CacheStoreProtocol[T, S]):
         self,
         *,
         cache_key: T,
-        expire_seconds: ExpireSeconds | None,
+        expire_seconds: Expiry | None,
         original_function: Callable[..., S],
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
@@ -141,7 +141,7 @@ class CacheStore(CacheStoreProtocol[T, S]):
             self.put(cache_key, result, expire_seconds=expire_seconds)
             return result
 
-    def remove(self, key: T) -> None:
+    def delete(self, key: T) -> None:
         real_key = self.__get_real_key(key)
         self.backend.delete(real_key)
 

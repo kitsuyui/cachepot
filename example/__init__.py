@@ -47,7 +47,7 @@ def example_usage() -> None:
     cachestore = SimpleFileSystemCacheStore('example', directory='./tmp')
     cachestore.put('x', 1)
     assert cachestore.get('x') == 1
-    cachestore.remove('x')
+    cachestore.delete('x')
     assert cachestore.get('x') is None
     assert cachestore.proxy(lambda: 3)(cache_key='y') == 3
     assert cachestore.proxy(lambda: 3)(cache_key='y') == 3
