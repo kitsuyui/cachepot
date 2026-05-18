@@ -3,10 +3,30 @@ import pathlib
 import sqlite3
 import tempfile
 import time
+from datetime import datetime, timedelta
 
 import pytest
 
+import cachepot.backend.sqlite as sqlite_backend
 from cachepot.backend.sqlite import SQLiteCacheBackend
+
+_CONTROLLED_CURRENT_TIME: list[datetime] = [datetime(1970, 1, 1)]
+_CONTROLLED_LOCK_TIME: list[datetime] = [datetime(1970, 1, 1)]
+
+
+class _ControlledDateTime:
+    @classmethod
+    def now(cls):
+        return _CONTROLLED_CURRENT_TIME[0]
+
+
+class _AdvancingLock:
+    def __enter__(self):
+        _CONTROLLED_CURRENT_TIME[0] = _CONTROLLED_LOCK_TIME[0]
+        return self
+
+    def __exit__(self, _exc_type, _exc, _traceback):
+        return None
 
 
 def test_sqlite_connection() -> None:
@@ -76,6 +96,23 @@ def test_delete_expired() -> None:
 
         # calling again with nothing expired returns 0
         assert cachestore.delete_expired() == 0
+
+
+def test_save_expiration_starts_after_lock_acquisition(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    start = datetime(2026, 1, 1, 0, 0, 0)
+    _CONTROLLED_CURRENT_TIME[0] = start
+    _CONTROLLED_LOCK_TIME[0] = start + timedelta(seconds=11)
+
+    with tempfile.NamedTemporaryFile() as f:
+        cachestore = SQLiteCacheBackend(f.name)
+        monkeypatch.setattr(sqlite_backend, "datetime", _ControlledDateTime)
+        monkeypatch.setattr(cachestore, "_lock", _AdvancingLock())
+
+        cachestore.save(b"delayed", b"value", expire_seconds=10)
+
+        assert cachestore.load(b"delayed") == b"value"
 
 
 def _thread_worker(cachestore: SQLiteCacheBackend, i: int) -> None:

@@ -60,8 +60,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_cachepot
         *,
         expire_seconds: ExpireSeconds,
     ) -> None:
-        expire_at = datetime.now() + to_timedelta(expire_seconds)
         with self._lock:
+            expire_at = datetime.now() + to_timedelta(expire_seconds)
             self.conn.execute(
                 """\
 INSERT OR REPLACE INTO cachepot
