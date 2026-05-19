@@ -47,9 +47,28 @@ def test_save_sets_ttl_atomically() -> None:
         cachestore.delete(b"ttl-check")
 
 
+def test_exists() -> None:
+    r = redis.Redis(host="localhost", port=6379, db=0)
+    cachestore = RedisCacheBackend(r)
+    assert not cachestore.exists(b"exists-key")
+    cachestore.save(b"exists-key", b"v", expire_seconds=60)
+    assert cachestore.exists(b"exists-key")
+    cachestore.delete(b"exists-key")
+    assert not cachestore.exists(b"exists-key")
+
+
+def test_exists_does_not_return_true_for_expired() -> None:
+    r = redis.Redis(host="localhost", port=6379, db=0)
+    cachestore = RedisCacheBackend(r)
+    cachestore.save(b"exists-expire-key", b"v", expire_seconds=1)
+    assert cachestore.exists(b"exists-expire-key")
+    time.sleep(2)
+    assert not cachestore.exists(b"exists-expire-key")
+
+
 def test_save_accepts_timedelta_expire_seconds() -> None:
     """The backend should still honour ``timedelta`` inputs from
-    ``ExpireSeconds`` after the SET+EX consolidation."""
+    ``Expiry`` after the SET+EX consolidation."""
     r = redis.Redis(host="localhost", port=6379, db=0)
     cachestore = RedisCacheBackend(r)
     cachestore.save(b"td-key", b"v", expire_seconds=timedelta(seconds=30))

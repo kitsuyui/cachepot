@@ -164,3 +164,28 @@ def test_delete_expired() -> None:
         assert live_path.exists()
         assert cachestore.load(b"live") == b"value"
         assert cachestore.delete_expired() == 0
+
+
+def test_exists() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cachestore = FileSystemCacheBackend(pathlib.Path(tmpdir))
+        assert not cachestore.exists(b"k")
+        cachestore.save(b"k", b"v", expire_seconds=60)
+        assert cachestore.exists(b"k")
+        cachestore.delete(b"k")
+        assert not cachestore.exists(b"k")
+
+
+def test_exists_does_not_delete_expired_entry() -> None:
+    """exists() must be side-effect-free: calling it on an expired entry
+    must not delete the file from disk."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = pathlib.Path(tmpdir)
+        cachestore = FileSystemCacheBackend(cache_dir)
+        key = b"expired"
+        cachestore.save(key, b"value", expire_seconds=60)
+        realpath = _cache_entry_path(cache_dir, key)
+        _mark_expired(realpath)
+
+        assert not cachestore.exists(key)
+        assert realpath.exists(), "exists() must not delete the file"

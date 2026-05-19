@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import BinaryIO, cast
 
 from cachepot.backend import CacheBackendProtocol
-from cachepot.expire import ExpireSeconds, to_timedelta
+from cachepot.expire import Expiry, to_timedelta
 
 PathLike = pathlib.Path | str
 
@@ -30,7 +30,7 @@ class FileSystemCacheBackend(CacheBackendProtocol):
         key: bytes,
         value: bytes,
         *,
-        expire_seconds: ExpireSeconds,
+        expire_seconds: Expiry,
     ) -> None:
         expire_at = datetime.now() + to_timedelta(expire_seconds)
         expire_timestamp = time.mktime(expire_at.timetuple())
@@ -72,6 +72,10 @@ class FileSystemCacheBackend(CacheBackendProtocol):
 
     def __is_expired(self, path: pathlib.Path) -> bool:
         return path.stat().st_mtime < time.mktime(datetime.now().timetuple())
+
+    def exists(self, key: bytes) -> bool:
+        path = self.__get_real_path(key)
+        return path.is_file() and not self.__is_expired(path)
 
     def delete(self, key: bytes) -> None:
         with contextlib.suppress(FileNotFoundError):
