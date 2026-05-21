@@ -1,9 +1,71 @@
+import io
 import pickle
+from itertools import islice
 from typing import Any
 
 from cachepot.serializer import SerializerProtocol
 
 PICKLE_PROTOCOL = 4
+_PicklerBase: Any = pickle._Pickler  # type: ignore[attr-defined]
+
+
+class _DeterministicPickler(_PicklerBase):
+    dispatch = _PicklerBase.dispatch.copy()
+
+    @staticmethod
+    def _sorted_items(data: set[Any] | frozenset[Any]) -> list[Any]:
+        return sorted(data, key=_stable_pickle_sort_key)
+
+    def save_set(self, obj: set[Any]) -> None:  # noqa: C901
+        if self.proto < 4:
+            self.save_reduce(set, (self._sorted_items(obj),), obj=obj)
+            return
+
+        self.write(pickle.EMPTY_SET)
+        self.memoize(obj)
+
+        items = iter(self._sorted_items(obj))
+        while True:
+            batch = list(islice(items, self._BATCHSIZE))
+            if batch:
+                self.write(pickle.MARK)
+                for item in batch:
+                    self.save(item)
+                self.write(pickle.ADDITEMS)
+            if len(batch) < self._BATCHSIZE:
+                return
+
+    def save_frozenset(self, obj: frozenset[Any]) -> None:  # noqa: C901
+        if self.proto < 4:
+            self.save_reduce(frozenset, (self._sorted_items(obj),), obj=obj)
+            return
+
+        self.write(pickle.MARK)
+        for item in self._sorted_items(obj):
+            self.save(item)
+
+        if id(obj) in self.memo:
+            self.write(pickle.POP_MARK + self.get(self.memo[id(obj)][0]))
+            return
+
+        self.write(pickle.FROZENSET)
+        self.memoize(obj)
+
+
+_DeterministicPickler.dispatch[set] = _DeterministicPickler.save_set
+_DeterministicPickler.dispatch[frozenset] = (
+    _DeterministicPickler.save_frozenset
+)
+
+
+def _stable_pickle_sort_key(data: Any) -> bytes:
+    return _pickle_dumps(data)
+
+
+def _pickle_dumps(data: Any) -> bytes:
+    stream = io.BytesIO()
+    _DeterministicPickler(stream, protocol=PICKLE_PROTOCOL).dump(data)
+    return stream.getvalue()
 
 
 class PickleSerializer(SerializerProtocol[Any]):
@@ -20,7 +82,7 @@ class PickleSerializer(SerializerProtocol[Any]):
     """
 
     def serialize(self, data: Any) -> bytes:
-        return pickle.dumps(data, protocol=PICKLE_PROTOCOL)
+        return _pickle_dumps(data)
 
     def deserialize(self, serialized_data: bytes) -> Any:
         """Deserialize bytes produced by :meth:`serialize`.
