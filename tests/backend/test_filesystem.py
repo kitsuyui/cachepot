@@ -2,8 +2,10 @@ import hashlib
 import os
 import pathlib
 import tempfile
+import threading
 import time
 from datetime import datetime
+from types import MethodType
 from typing import BinaryIO, TextIO, cast
 
 import pytest
@@ -12,6 +14,7 @@ from cachepot.backend.filesystem import FileSystemCacheBackend
 from cachepot.expire import to_timedelta
 
 _ORIGINAL_PATH_OPEN = pathlib.Path.open
+_ORIGINAL_PATH_UNLINK = pathlib.Path.unlink
 
 
 def _cache_entry_path(cache_dir: pathlib.Path, key: bytes) -> pathlib.Path:
@@ -43,6 +46,80 @@ def _unlink_before_open(
             newline=newline,
         ),
     )
+
+
+class _UnlinkAfterConcurrentSave:
+    __slots__ = ("realpath", "save_done", "unlink_started")
+
+    def __init__(
+        self,
+        realpath: pathlib.Path,
+        unlink_started: threading.Event,
+        save_done: threading.Event,
+    ) -> None:
+        self.realpath = realpath
+        self.unlink_started = unlink_started
+        self.save_done = save_done
+
+    def __get__(
+        self,
+        obj: pathlib.Path,
+        _objtype: type[pathlib.Path] | None = None,
+    ) -> MethodType:
+        return MethodType(self, obj)
+
+    def __call__(
+        self,
+        path: pathlib.Path,
+        missing_ok: bool = False,
+    ) -> None:
+        if path == self.realpath:
+            self.unlink_started.set()
+            self.save_done.wait(timeout=0.2)
+        _ORIGINAL_PATH_UNLINK(path, missing_ok=missing_ok)
+
+
+def _save_after_unlink_starts(
+    cachestore: FileSystemCacheBackend,
+    key: bytes,
+    unlink_started: threading.Event,
+    save_done: threading.Event,
+) -> None:
+    assert unlink_started.wait(timeout=1)
+    cachestore.save(key, b"new", expire_seconds=3600)
+    save_done.set()
+
+
+def test_delete_expired_does_not_remove_concurrent_fresh_save(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = pathlib.Path(tmpdir)
+        cachestore = FileSystemCacheBackend(cache_dir)
+        key = b"race"
+        cachestore.save(key, b"old", expire_seconds=60)
+        realpath = _cache_entry_path(cache_dir, key)
+        _mark_expired(realpath)
+        unlink_started = threading.Event()
+        save_done = threading.Event()
+
+        monkeypatch.setattr(
+            pathlib.Path,
+            "unlink",
+            _UnlinkAfterConcurrentSave(realpath, unlink_started, save_done),
+        )
+
+        writer = threading.Thread(
+            target=_save_after_unlink_starts,
+            args=(cachestore, key, unlink_started, save_done),
+        )
+        writer.start()
+        deleted = cachestore.delete_expired()
+        writer.join(timeout=1)
+
+        assert not writer.is_alive()
+        assert deleted == 1
+        assert cachestore.load(key) == b"new"
 
 
 def test_various_pathlike() -> None:
@@ -126,9 +203,7 @@ def test_save_sets_expiration_mtime_on_overwrite() -> None:
         cachestore.save(b"k", b"new", expire_seconds=3600)
 
         (entry,) = [p for p in cache_dir.iterdir() if p.is_file()]
-        future_threshold = (
-            datetime.now() + to_timedelta(60)
-        ).timestamp()
+        future_threshold = (datetime.now() + to_timedelta(60)).timestamp()
         assert entry.stat().st_mtime >= future_threshold
         assert cachestore.load(b"k") == b"new"
 

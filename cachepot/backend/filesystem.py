@@ -3,6 +3,7 @@ import hashlib
 import os
 import pathlib
 import tempfile
+import threading
 import time
 from datetime import datetime
 from typing import BinaryIO, cast
@@ -21,6 +22,7 @@ class FileSystemCacheBackend(CacheBackendProtocol):
             self.path = pathlib.Path(path)
         else:
             self.path = path
+        self.__lock = threading.RLock()
 
     def __get_real_path(self, key: bytes) -> pathlib.Path:
         return self.path / hashlib.sha256(key).hexdigest()
@@ -35,28 +37,29 @@ class FileSystemCacheBackend(CacheBackendProtocol):
         expire_at = datetime.now() + to_timedelta(expire_seconds)
         expire_timestamp = time.mktime(expire_at.timetuple())
 
-        realpath = self.__get_real_path(key)
-        realpath.parent.mkdir(parents=True, exist_ok=True)
+        with self.__lock:
+            realpath = self.__get_real_path(key)
+            realpath.parent.mkdir(parents=True, exist_ok=True)
 
-        # Atomic write: stage the payload in a sibling temp file, stamp
-        # its mtime to the expiration time, then ``os.replace`` it onto
-        # the final path. A crash before the rename leaves the temp file
-        # behind but never exposes a partial or stale-mtime cache entry
-        # at the real path.
-        fd, tmpname = tempfile.mkstemp(
-            prefix=".tmp-",
-            dir=str(realpath.parent),
-        )
-        tmppath = pathlib.Path(tmpname)
-        try:
-            with cast(BinaryIO, os.fdopen(fd, "wb")) as f:
-                f.write(value)
-            os.utime(str(tmppath), (expire_timestamp, expire_timestamp))
-            tmppath.replace(realpath)
-        except BaseException:
-            with contextlib.suppress(FileNotFoundError):
-                tmppath.unlink()
-            raise
+            # Atomic write: stage the payload in a sibling temp file, stamp
+            # its mtime to the expiration time, then ``os.replace`` it onto
+            # the final path. A crash before the rename leaves the temp file
+            # behind but never exposes a partial or stale-mtime cache entry
+            # at the real path.
+            fd, tmpname = tempfile.mkstemp(
+                prefix=".tmp-",
+                dir=str(realpath.parent),
+            )
+            tmppath = pathlib.Path(tmpname)
+            try:
+                with cast(BinaryIO, os.fdopen(fd, "wb")) as f:
+                    f.write(value)
+                os.utime(str(tmppath), (expire_timestamp, expire_timestamp))
+                tmppath.replace(realpath)
+            except BaseException:
+                with contextlib.suppress(FileNotFoundError):
+                    tmppath.unlink()
+                raise
 
     def load(self, key: bytes) -> bytes | None:
         path = self.__get_real_path(key)
@@ -75,10 +78,11 @@ class FileSystemCacheBackend(CacheBackendProtocol):
 
     def exists(self, key: bytes) -> bool:
         path = self.__get_real_path(key)
-        return path.is_file() and not self.__is_expired(path)
+        with self.__lock:
+            return path.is_file() and not self.__is_expired(path)
 
     def delete(self, key: bytes) -> None:
-        with contextlib.suppress(FileNotFoundError):
+        with self.__lock, contextlib.suppress(FileNotFoundError):
             self.__get_real_path(key).unlink()
 
     def delete_expired(self) -> int:
@@ -96,7 +100,8 @@ class FileSystemCacheBackend(CacheBackendProtocol):
         return False
 
     def __delete_if_expired(self, path: pathlib.Path) -> bool:
-        if self.__is_expired(path):
-            path.unlink()
-            return True
+        with self.__lock:
+            if self.__is_expired(path):
+                path.unlink()
+                return True
         return False
