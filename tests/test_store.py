@@ -2,8 +2,10 @@ import concurrent.futures
 import functools
 import tempfile
 import time
+import warnings
 from collections.abc import Callable
 from typing import TYPE_CHECKING, cast
+from unittest.mock import MagicMock
 
 import pytest
 from typing_extensions import assert_type
@@ -219,3 +221,60 @@ def test_proxy_requires_cache_key_at_runtime() -> None:
         proxied = cachestore.proxy(lambda: 3)
         with pytest.raises(TypeError, match="cache_key"):
             proxied()  # type: ignore[call-arg]
+
+
+def test_proxy_returns_result_when_backend_write_fails() -> None:
+    """proxy() must return the computed result even when write fails.
+
+    A disk-full or DB error must not discard an already-executed result.
+    A warning is issued so callers can observe the failure.
+    """
+    backend = MagicMock()
+    backend.load.return_value = None
+    backend.save.side_effect = OSError("No space left on device")
+
+    store: CacheStore[str, int] = CacheStore(
+        namespace="testing",
+        key_serializer=StringSerializer(),
+        value_serializer=PickleSerializer(),
+        backend=backend,
+        default_expire_seconds=60,
+    )
+
+    call_count = 0
+
+    def expensive() -> int:
+        nonlocal call_count
+        call_count += 1
+        return 99
+
+    proxied = store.proxy(expensive)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = proxied(cache_key="k")
+
+    assert result == 99
+    assert call_count == 1
+    assert len(caught) == 1
+    assert "Cache write failed" in str(caught[0].message)
+    assert "testing" in str(caught[0].message)
+
+
+def test_get_raises_with_key_context_on_deserialize_failure() -> None:
+    """get() must include namespace/key in the error on corrupt data."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        store = CacheStore(
+            namespace="my-ns",
+            key_serializer=StringSerializer(),
+            value_serializer=PickleSerializer(),
+            backend=FileSystemCacheBackend(tmpdir),
+            default_expire_seconds=60,
+        )
+        # Write corrupted bytes directly via the backend
+        real_key = store._CacheStore__get_real_key("bad-key")  # type: ignore[attr-defined]
+        store.backend.save(real_key, b"\xff\xfe corrupted", expire_seconds=60)
+
+        with pytest.raises(RuntimeError, match="my-ns") as exc_info:
+            store.get("bad-key")
+        assert "bad-key" in str(exc_info.value)
+        assert exc_info.value.__cause__ is not None

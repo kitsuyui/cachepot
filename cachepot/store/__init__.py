@@ -1,4 +1,5 @@
 import threading
+import warnings
 from collections.abc import Callable
 from typing import Any, Protocol, TypeVar
 
@@ -71,12 +72,21 @@ class CacheStore(CacheStoreProtocol[T, S]):
         ns_bytes = self.namespace.encode()
         return len(ns_bytes).to_bytes(4, "big") + ns_bytes + serialized_key
 
+    def _deserialize(self, loaded: bytes, key: T) -> S:
+        try:
+            return self.value_serializer.deserialize(loaded)
+        except Exception as exc:
+            raise RuntimeError(
+                f"Cache deserialization failed: "
+                f"namespace={self.namespace!r}, key={key!r}",
+            ) from exc
+
     def get(self, key: T) -> S | None:
         real_key = self.__get_real_key(key)
         loaded = self.backend.load(real_key)
         if loaded is None:
             return None
-        return self.value_serializer.deserialize(loaded)
+        return self._deserialize(loaded, key)
 
     def has(self, key: T) -> bool:
         real_key = self.__get_real_key(key)
@@ -135,11 +145,27 @@ class CacheStore(CacheStoreProtocol[T, S]):
         with self._lock:
             loaded = self.backend.load(real_key)
             if loaded is not None:
-                return self.value_serializer.deserialize(loaded)
+                return self._deserialize(loaded, cache_key)
 
             result = original_function(*args, **kwargs)
-            self.put(cache_key, result, expire_seconds=expire_seconds)
+            self._put_or_warn(cache_key, result, expire_seconds)
             return result
+
+    def _put_or_warn(
+        self,
+        cache_key: T,
+        result: S,
+        expire_seconds: Expiry | None,
+    ) -> None:
+        try:
+            self.put(cache_key, result, expire_seconds=expire_seconds)
+        except Exception as exc:
+            warnings.warn(
+                f"Cache write failed: "
+                f"namespace={self.namespace!r}, "
+                f"key={cache_key!r}: {exc}",
+                stacklevel=5,
+            )
 
     def delete(self, key: T) -> None:
         real_key = self.__get_real_key(key)
