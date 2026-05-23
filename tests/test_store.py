@@ -256,7 +256,9 @@ def test_proxy_returns_result_when_backend_write_fails() -> None:
     assert result == 99
     assert call_count == 1
     cache_write_warnings = [
-        warning for warning in caught if "Cache write failed" in str(warning.message)
+        warning
+        for warning in caught
+        if "Cache write failed" in str(warning.message)
     ]
     assert len(cache_write_warnings) == 1
     assert "testing" in str(cache_write_warnings[0].message)
