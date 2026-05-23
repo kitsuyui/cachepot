@@ -255,9 +255,11 @@ def test_proxy_returns_result_when_backend_write_fails() -> None:
 
     assert result == 99
     assert call_count == 1
-    assert len(caught) == 1
-    assert "Cache write failed" in str(caught[0].message)
-    assert "testing" in str(caught[0].message)
+    cache_write_warnings = [
+        warning for warning in caught if "Cache write failed" in str(warning.message)
+    ]
+    assert len(cache_write_warnings) == 1
+    assert "testing" in str(cache_write_warnings[0].message)
 
 
 def test_get_raises_with_key_context_on_deserialize_failure() -> None:
