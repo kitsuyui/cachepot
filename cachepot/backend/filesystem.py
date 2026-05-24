@@ -41,11 +41,13 @@ class FileSystemCacheBackend(CacheBackendProtocol):
             realpath = self.__get_real_path(key)
             realpath.parent.mkdir(parents=True, exist_ok=True)
 
-            # Atomic write: stage the payload in a sibling temp file, stamp
-            # its mtime to the expiration time, then ``os.replace`` it onto
-            # the final path. A crash before the rename leaves the temp file
-            # behind but never exposes a partial or stale-mtime cache entry
-            # at the real path.
+            # Atomic write: stage the payload in a sibling temp file, fsync
+            # to disk, stamp its mtime to the expiration time, then
+            # ``os.replace`` it onto the final path. Fsyncing before the
+            # rename ensures the data reaches durable storage before the entry
+            # becomes visible at the real path. A crash before the rename
+            # leaves the temp file behind but never exposes a partial or
+            # stale-mtime cache entry at the real path.
             fd, tmpname = tempfile.mkstemp(
                 prefix=".tmp-",
                 dir=str(realpath.parent),
@@ -54,6 +56,8 @@ class FileSystemCacheBackend(CacheBackendProtocol):
             try:
                 with cast(BinaryIO, os.fdopen(fd, "wb")) as f:
                     f.write(value)
+                    f.flush()
+                    os.fsync(f.fileno())
                 os.utime(str(tmppath), (expire_timestamp, expire_timestamp))
                 tmppath.replace(realpath)
             except BaseException:
