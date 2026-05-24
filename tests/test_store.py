@@ -264,6 +264,42 @@ def test_proxy_returns_result_when_backend_write_fails() -> None:
     assert "testing" in str(cache_write_warnings[0].message)
 
 
+def _make_store(tmpdir: str) -> CacheStore[str, str]:
+    return CacheStore(
+        namespace="testing",
+        key_serializer=StringSerializer(),
+        value_serializer=PickleSerializer(),
+        backend=FileSystemCacheBackend(tmpdir),
+        default_expire_seconds=60,
+    )
+
+
+def test_proxy_rejects_function_with_cache_key_param() -> None:
+    """proxy() raises TypeError at creation time when the wrapped function
+    has a parameter named 'cache_key', because the proxy captures it."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        store = _make_store(tmpdir)
+
+        def fn(*, cache_key: str) -> str:
+            return cache_key
+
+        with pytest.raises(TypeError, match="cache_key"):
+            store.proxy(fn)
+
+
+def test_proxy_rejects_function_with_expire_seconds_param() -> None:
+    """proxy() raises TypeError at creation time when the wrapped function
+    has a parameter named 'expire_seconds', because the proxy captures it."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        store = _make_store(tmpdir)
+
+        def fn(*, expire_seconds: int) -> str:
+            return str(expire_seconds)
+
+        with pytest.raises(TypeError, match="expire_seconds"):
+            store.proxy(fn)
+
+
 def test_get_raises_with_key_context_on_deserialize_failure() -> None:
     """get() must include namespace/key in the error on corrupt data."""
     with tempfile.TemporaryDirectory() as tmpdir:

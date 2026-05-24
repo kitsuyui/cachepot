@@ -34,4 +34,13 @@ class RedisCacheBackend(CacheBackendProtocol):
         self.redis.delete(key)
 
     def delete_expired(self) -> int:
+        """Return 0: Redis expires entries via server-side TTL automatically.
+
+        Redis does not expose an API to enumerate or count entries that have
+        already been evicted by their TTL.  This method is a no-op that
+        satisfies the ``CacheBackendProtocol`` contract; the actual expiry is
+        handled transparently by Redis.  Callers must not use the return value
+        of this method as a health or activity metric when using a Redis
+        backend — it will always be 0 regardless of how many entries expired.
+        """
         return 0
