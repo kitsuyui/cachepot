@@ -4,17 +4,28 @@ import pathlib
 import tempfile
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, tzinfo
 from types import MethodType
-from typing import BinaryIO, TextIO, cast
+from typing import BinaryIO, ClassVar, TextIO, cast
 
 import pytest
 
+from cachepot.backend import filesystem as filesystem_backend
 from cachepot.backend.filesystem import FileSystemCacheBackend
 from cachepot.expire import to_timedelta
 
 _ORIGINAL_PATH_OPEN = pathlib.Path.open
 _ORIGINAL_PATH_UNLINK = pathlib.Path.unlink
+
+
+class _FrozenDatetime(datetime):
+    frozen_now: ClassVar["_FrozenDatetime"]
+
+    @classmethod
+    def now(cls, tz: tzinfo | None = None) -> "_FrozenDatetime":
+        if tz is not None:
+            return cls.frozen_now.replace(tzinfo=tz)
+        return cls.frozen_now
 
 
 def _cache_entry_path(cache_dir: pathlib.Path, key: bytes) -> pathlib.Path:
@@ -159,6 +170,35 @@ def test_expire() -> None:
         assert cachestore.load(b"1") == b"2"
         time.sleep(2)
         assert cachestore.load(b"1") is None
+
+
+def test_fractional_expire_seconds_preserves_subsecond_timestamp(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = _FrozenDatetime(2026, 5, 25, 10, 30, 15, 250000)
+    expire_seconds = 0.5
+    _FrozenDatetime.frozen_now = now
+    monkeypatch.setattr(filesystem_backend, "datetime", _FrozenDatetime)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = pathlib.Path(tmpdir)
+        cachestore = FileSystemCacheBackend(cache_dir)
+        key = b"fractional"
+        cachestore.save(key, b"value", expire_seconds=expire_seconds)
+        realpath = _cache_entry_path(cache_dir, key)
+        expected_expire_at = now.timestamp() + expire_seconds
+
+        assert realpath.stat().st_mtime == pytest.approx(
+            expected_expire_at,
+        )
+
+        monkeypatch.setattr(
+            filesystem_backend.time,
+            "time",
+            lambda: expected_expire_at + 0.001,
+        )
+
+        assert cachestore.load(key) is None
 
 
 def test_load_returns_none_when_entry_disappears_before_open(

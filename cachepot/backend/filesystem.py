@@ -35,7 +35,7 @@ class FileSystemCacheBackend(CacheBackendProtocol):
         expire_seconds: Expiry,
     ) -> None:
         expire_at = datetime.now() + to_timedelta(expire_seconds)
-        expire_timestamp = time.mktime(expire_at.timetuple())
+        expire_timestamp = expire_at.timestamp()
 
         with self.__lock:
             realpath = self.__get_real_path(key)
@@ -78,7 +78,7 @@ class FileSystemCacheBackend(CacheBackendProtocol):
         return path.is_file() and not self.__delete_if_expired(path)
 
     def __is_expired(self, path: pathlib.Path) -> bool:
-        return path.stat().st_mtime < time.mktime(datetime.now().timetuple())
+        return path.stat().st_mtime < time.time()
 
     def exists(self, key: bytes) -> bool:
         path = self.__get_real_path(key)
