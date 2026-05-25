@@ -1,3 +1,4 @@
+import inspect
 import threading
 import warnings
 from collections.abc import Callable
@@ -42,7 +43,16 @@ class CacheStoreProtocol(Protocol[T, S]):
 
     def delete(self, key: T) -> None: ...
 
-    def delete_expired(self) -> int: ...
+    def delete_expired(self) -> int:
+        """Return the number of expired entries removed.
+
+        Implementations backed by a TTL-aware store (e.g. Redis) that expire
+        entries autonomously may always return 0 — the backend still enforces
+        TTLs, but cannot count entries that were evicted without an explicit
+        deletion call.  Do not rely on a non-zero return value from such
+        backends as a liveness signal.
+        """
+        ...
 
 
 class CacheStore(CacheStoreProtocol[T, S]):
@@ -109,7 +119,19 @@ class CacheStore(CacheStoreProtocol[T, S]):
             expire_seconds=expire_seconds,
         )
 
-    def proxy(
+    _RESERVED_PROXY_PARAMS: frozenset[str] = frozenset(
+        {"cache_key", "expire_seconds"},
+    )
+
+    @staticmethod
+    def _proxy_conflicts(fn: Callable[..., Any]) -> frozenset[str]:
+        try:
+            params = inspect.signature(fn).parameters.keys()
+            return CacheStore._RESERVED_PROXY_PARAMS & params
+        except (TypeError, ValueError):
+            return frozenset()
+
+    def _make_proxy(
         self,
         original_function: Callable[..., S],
     ) -> CacheProxyProtocol[T, S]:
@@ -128,6 +150,32 @@ class CacheStore(CacheStoreProtocol[T, S]):
             )
 
         return _proxy
+
+    def proxy(
+        self,
+        original_function: Callable[..., S],
+    ) -> CacheProxyProtocol[T, S]:
+        """Return a caching proxy for *original_function*.
+
+        The proxy injects ``cache_key`` and ``expire_seconds`` as its own
+        keyword-only arguments before forwarding the remaining ``**kwargs``
+        to *original_function*.  Therefore *original_function* must **not**
+        declare parameters named ``cache_key`` or ``expire_seconds``; if it
+        does, those arguments are silently captured by the proxy and never
+        reach the wrapped function, causing a ``TypeError`` at call time.
+
+        A ``TypeError`` is raised at proxy creation time when such a conflict
+        is detected, before any calls are made.
+        """
+        conflicts = self._proxy_conflicts(original_function)
+        if conflicts:
+            names = ", ".join(f"'{n}'" for n in sorted(conflicts))
+            raise TypeError(
+                f"proxy() cannot wrap a function whose parameter(s) "
+                f"({names}) share a name with proxy's reserved keyword "
+                f"arguments 'cache_key' and 'expire_seconds'.",
+            )
+        return self._make_proxy(original_function)
 
     def __load_or_compute(
         self,
