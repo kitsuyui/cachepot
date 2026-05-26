@@ -1,6 +1,6 @@
 import hashlib
-import os
 import pathlib
+import struct
 import tempfile
 import threading
 import time
@@ -32,9 +32,15 @@ def _cache_entry_path(cache_dir: pathlib.Path, key: bytes) -> pathlib.Path:
     return cache_dir / hashlib.sha256(key).hexdigest()
 
 
+_EXPIRY_HEADER_FORMAT = ">d"
+_EXPIRY_HEADER_SIZE = struct.calcsize(_EXPIRY_HEADER_FORMAT)
+
+
 def _mark_expired(path: pathlib.Path) -> None:
+    data = path.read_bytes()
     expired_at = time.time() - 60
-    os.utime(path, (expired_at, expired_at))
+    header = struct.pack(_EXPIRY_HEADER_FORMAT, expired_at)
+    path.write_bytes(header + data[_EXPIRY_HEADER_SIZE:])
 
 
 def _unlink_before_open(
@@ -231,9 +237,9 @@ def test_save_leaves_no_temp_files() -> None:
         assert all(not n.startswith(".tmp-") for n in names)
 
 
-def test_save_sets_expiration_mtime_on_overwrite() -> None:
-    """Overwriting an entry must end with the new expiration mtime, not
-    the kernel-default ``st_mtime`` of an in-flight write."""
+def test_save_sets_expiration_header_on_overwrite() -> None:
+    """Overwriting an entry must end with the new expiration header, not
+    an in-flight temporary timestamp."""
     with tempfile.TemporaryDirectory() as tmpdir:
         cache_dir = pathlib.Path(tmpdir)
         cachestore = FileSystemCacheBackend(cache_dir)
@@ -244,7 +250,9 @@ def test_save_sets_expiration_mtime_on_overwrite() -> None:
 
         (entry,) = [p for p in cache_dir.iterdir() if p.is_file()]
         future_threshold = (datetime.now() + to_timedelta(60)).timestamp()
-        assert entry.stat().st_mtime >= future_threshold
+        raw_header = entry.read_bytes()[:_EXPIRY_HEADER_SIZE]
+        (expire_ts,) = struct.unpack(_EXPIRY_HEADER_FORMAT, raw_header)
+        assert expire_ts >= future_threshold
         assert cachestore.load(b"k") == b"new"
 
 
