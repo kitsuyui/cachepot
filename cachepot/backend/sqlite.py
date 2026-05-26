@@ -11,31 +11,46 @@ from cachepot.expire import Expiry, to_timedelta
 ConnectionLike = str | pathlib.Path | sqlite3.Connection
 
 
+def _init_schema(conn: sqlite3.Connection) -> None:
+    conn.text_factory = bytes
+    conn.execute(
+        """\
+CREATE TABLE IF NOT EXISTS cachepot
+           ( key BLOB PRIMARY KEY
+           , value BLOB
+           , expire_at timestamp
+           )""",
+    )
+    conn.execute(
+        """\
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cachepot
+                 ON cachepot
+                  ( key
+                  , expire_at
+                  )""",
+    )
+
+
+def _open_and_init(path: str | pathlib.Path) -> sqlite3.Connection:
+    conn = sqlite3.connect(path, check_same_thread=False)
+    try:
+        _init_schema(conn)
+    except Exception:
+        conn.close()
+        raise
+    return conn
+
+
 class SQLiteCacheBackend(CacheBackendProtocol):
     conn: sqlite3.Connection
     _lock: threading.Lock
 
     def __init__(self, conn: ConnectionLike) -> None:
         if isinstance(conn, (str, pathlib.Path)):
-            conn = sqlite3.connect(conn, check_same_thread=False)
+            conn = _open_and_init(conn)
+        else:
+            _init_schema(conn)
         self._lock = threading.Lock()
-        conn.text_factory = bytes
-        conn.execute(
-            """\
-CREATE TABLE IF NOT EXISTS cachepot
-           ( key BLOB PRIMARY KEY
-           , value BLOB
-           , expire_at timestamp
-           )""",
-        )
-        conn.execute(
-            """\
-CREATE UNIQUE INDEX IF NOT EXISTS idx_cachepot
-                 ON cachepot
-                  ( key
-                  , expire_at
-                  )""",
-        )
         self.conn = conn
 
     def close(self) -> None:
