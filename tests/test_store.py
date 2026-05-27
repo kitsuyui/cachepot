@@ -300,6 +300,33 @@ def test_proxy_rejects_function_with_expire_seconds_param() -> None:
             store.proxy(fn)
 
 
+def test_direct_put_get_is_thread_safe() -> None:
+    """Concurrent direct put()/get() calls must not corrupt the cache.
+
+    Multiple threads writing different integer values to the same key must
+    each receive a valid integer back from get(), never None or an exception,
+    proving that get() and put() are protected by the same store lock as
+    proxy() / __load_or_compute().
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        store: CacheStore[str, int] = CacheStore(
+            namespace="testing",
+            key_serializer=StringSerializer(),
+            value_serializer=PickleSerializer(),
+            backend=FileSystemCacheBackend(tmpdir),
+            default_expire_seconds=60,
+        )
+
+        def put_then_get(i: int) -> int | None:
+            store.put("shared", i)
+            return store.get("shared")
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(put_then_get, range(8)))
+
+        assert all(isinstance(r, int) for r in results)
+
+
 def test_get_raises_with_key_context_on_deserialize_failure() -> None:
     """get() must include namespace/key in the error on corrupt data."""
     with tempfile.TemporaryDirectory() as tmpdir:
