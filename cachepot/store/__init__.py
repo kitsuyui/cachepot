@@ -92,15 +92,17 @@ class CacheStore(CacheStoreProtocol[T, S]):
             ) from exc
 
     def get(self, key: T) -> S | None:
-        real_key = self.__get_real_key(key)
-        loaded = self.backend.load(real_key)
-        if loaded is None:
-            return None
-        return self._deserialize(loaded, key)
+        with self._lock:
+            real_key = self.__get_real_key(key)
+            loaded = self.backend.load(real_key)
+            if loaded is None:
+                return None
+            return self._deserialize(loaded, key)
 
     def has(self, key: T) -> bool:
-        real_key = self.__get_real_key(key)
-        return self.backend.exists(real_key)
+        with self._lock:
+            real_key = self.__get_real_key(key)
+            return self.backend.exists(real_key)
 
     def put(
         self,
@@ -109,15 +111,16 @@ class CacheStore(CacheStoreProtocol[T, S]):
         *,
         expire_seconds: Expiry | None = None,
     ) -> None:
-        if expire_seconds is None:
-            expire_seconds = self.default_expire_seconds
-        real_key = self.__get_real_key(key)
-        serialized_value = self.value_serializer.serialize(value)
-        self.backend.save(
-            real_key,
-            serialized_value,
-            expire_seconds=expire_seconds,
-        )
+        with self._lock:
+            if expire_seconds is None:
+                expire_seconds = self.default_expire_seconds
+            real_key = self.__get_real_key(key)
+            serialized_value = self.value_serializer.serialize(value)
+            self.backend.save(
+                real_key,
+                serialized_value,
+                expire_seconds=expire_seconds,
+            )
 
     _RESERVED_PROXY_PARAMS: frozenset[str] = frozenset(
         {"cache_key", "expire_seconds"},
@@ -216,8 +219,9 @@ class CacheStore(CacheStoreProtocol[T, S]):
             )
 
     def delete(self, key: T) -> None:
-        real_key = self.__get_real_key(key)
-        self.backend.delete(real_key)
+        with self._lock:
+            real_key = self.__get_real_key(key)
+            self.backend.delete(real_key)
 
     def delete_expired(self) -> int:
         return self.backend.delete_expired()
