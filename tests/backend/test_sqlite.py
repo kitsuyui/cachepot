@@ -48,6 +48,19 @@ def test_sqlite_connection() -> None:
         assert cachestore.load(b"3") is None
 
 
+def test_sqlite_connection_text_factory_is_preserved() -> None:
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE external (value TEXT)")
+    conn.execute("INSERT INTO external (value) VALUES (?)", ("alpha",))
+
+    cachestore = SQLiteCacheBackend(conn)
+    cachestore.save(b"key", b"value", expire_seconds=1)
+
+    assert conn.text_factory is str
+    assert conn.execute("SELECT value FROM external").fetchone() == ("alpha",)
+    assert cachestore.load(b"key") == b"value"
+
+
 def test_sqlite_close_closes_connection() -> None:
     with tempfile.NamedTemporaryFile() as f:
         cachestore = SQLiteCacheBackend(f.name)
