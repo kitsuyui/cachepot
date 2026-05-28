@@ -3,6 +3,7 @@ import pathlib
 import sqlite3
 import tempfile
 import time
+import unittest.mock
 from datetime import datetime, timedelta
 
 import pytest
@@ -152,3 +153,41 @@ def test_sqlite_thread_safe() -> None:
             futures = [executor.submit(worker, i) for i in range(32)]
         results = [fut.result() for fut in futures]
     assert results == [None] * 32
+
+
+def test_init_closes_internal_connection_on_execute_failure() -> None:
+    with tempfile.NamedTemporaryFile(suffix=".db") as f:
+        db_path = f.name
+
+    spy_holder: list[unittest.mock.MagicMock] = []
+    real_connect = sqlite3.connect
+
+    def patched_connect(
+        path: object, **kwargs: object,
+    ) -> sqlite3.Connection:
+        real_conn = real_connect(path, **kwargs)  # type: ignore[call-overload]
+        spy = unittest.mock.MagicMock(wraps=real_conn)
+        spy.execute.side_effect = sqlite3.OperationalError("injected")
+        spy_holder.append(spy)
+        return spy
+
+    with (
+        unittest.mock.patch("sqlite3.connect", side_effect=patched_connect),
+        pytest.raises(sqlite3.OperationalError, match="injected"),
+    ):
+        SQLiteCacheBackend(db_path)
+
+    spy_holder[0].close.assert_called_once()
+
+
+def test_init_does_not_close_caller_connection_on_failure() -> None:
+    with tempfile.NamedTemporaryFile(suffix=".db") as f:
+        real_conn = sqlite3.connect(f.name)
+        spy = unittest.mock.MagicMock(wraps=real_conn)
+        spy.execute.side_effect = sqlite3.OperationalError("injected")
+
+        with pytest.raises(sqlite3.OperationalError, match="injected"):
+            SQLiteCacheBackend(spy)
+
+        spy.close.assert_not_called()
+        real_conn.close()
