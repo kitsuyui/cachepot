@@ -194,9 +194,12 @@ def test_fractional_expire_seconds_preserves_subsecond_timestamp(
         realpath = _cache_entry_path(cache_dir, key)
         expected_expire_at = now.timestamp() + expire_seconds
 
-        assert realpath.stat().st_mtime == pytest.approx(
-            expected_expire_at,
+        raw_header = realpath.read_bytes()[:_EXPIRY_HEADER_SIZE]
+        (stored_expire_at,) = struct.unpack(
+            _EXPIRY_HEADER_FORMAT,
+            raw_header,
         )
+        assert stored_expire_at == pytest.approx(expected_expire_at)
 
         monkeypatch.setattr(
             filesystem_backend.time,
