@@ -12,7 +12,6 @@ ConnectionLike = str | pathlib.Path | sqlite3.Connection
 
 
 def _init_schema(conn: sqlite3.Connection) -> None:
-    conn.text_factory = bytes
     conn.execute(
         """\
 CREATE TABLE IF NOT EXISTS cachepot
