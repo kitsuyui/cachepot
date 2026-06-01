@@ -2,6 +2,7 @@ import contextlib
 import hashlib
 import os
 import pathlib
+import struct
 import tempfile
 import threading
 import time
@@ -12,6 +13,9 @@ from cachepot.backend import CacheBackendProtocol
 from cachepot.expire import Expiry, to_timedelta
 
 PathLike = pathlib.Path | str
+
+_EXPIRY_HEADER_FORMAT = ">d"
+_EXPIRY_HEADER_SIZE = struct.calcsize(_EXPIRY_HEADER_FORMAT)
 
 
 class FileSystemCacheBackend(CacheBackendProtocol):
@@ -41,13 +45,11 @@ class FileSystemCacheBackend(CacheBackendProtocol):
             realpath = self.__get_real_path(key)
             realpath.parent.mkdir(parents=True, exist_ok=True)
 
-            # Atomic write: stage the payload in a sibling temp file, fsync
-            # to disk, stamp its mtime to the expiration time, then
-            # ``os.replace`` it onto the final path. Fsyncing before the
-            # rename ensures the data reaches durable storage before the entry
-            # becomes visible at the real path. A crash before the rename
-            # leaves the temp file behind but never exposes a partial or
-            # stale-mtime cache entry at the real path.
+            # Atomic write: stage [8-byte expiry header][payload] in a sibling
+            # temp file, fsync to disk, then ``os.replace`` it onto the real
+            # path.  The expiry timestamp is encoded in the file itself so that
+            # external mtime changes (touch, rsync, tar, etc.) cannot corrupt
+            # the expiry state.
             fd, tmpname = tempfile.mkstemp(
                 prefix=".tmp-",
                 dir=str(realpath.parent),
@@ -55,10 +57,12 @@ class FileSystemCacheBackend(CacheBackendProtocol):
             tmppath = pathlib.Path(tmpname)
             try:
                 with cast(BinaryIO, os.fdopen(fd, "wb")) as f:
+                    f.write(
+                        struct.pack(_EXPIRY_HEADER_FORMAT, expire_timestamp),
+                    )
                     f.write(value)
                     f.flush()
                     os.fsync(f.fileno())
-                os.utime(str(tmppath), (expire_timestamp, expire_timestamp))
                 tmppath.replace(realpath)
             except BaseException:
                 with contextlib.suppress(FileNotFoundError):
@@ -71,14 +75,21 @@ class FileSystemCacheBackend(CacheBackendProtocol):
             if not self.__can_load(path):
                 return None
             with cast(BinaryIO, path.open("rb")) as f:
+                f.seek(_EXPIRY_HEADER_SIZE)
                 return f.read()
         return None
 
     def __can_load(self, path: pathlib.Path) -> bool:
         return path.is_file() and not self.__delete_if_expired(path)
 
+    def __read_expire_timestamp(self, path: pathlib.Path) -> float:
+        with contextlib.suppress(OSError, struct.error), path.open("rb") as f:
+            raw = f.read(_EXPIRY_HEADER_SIZE)
+            return struct.unpack(_EXPIRY_HEADER_FORMAT, raw)[0]
+        return float("-inf")
+
     def __is_expired(self, path: pathlib.Path) -> bool:
-        return path.stat().st_mtime < time.time()
+        return self.__read_expire_timestamp(path) < time.time()
 
     def exists(self, key: bytes) -> bool:
         path = self.__get_real_path(key)
