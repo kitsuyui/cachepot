@@ -26,8 +26,7 @@ Homepage = "https://github.com/kitsuyui/cachepot"
 
 [project.optional-dependencies]
 redis = [
-    "redis",
-    "types-redis",
+    "redis>=8,<9",
 ]
 
 [dependency-groups]
@@ -38,8 +37,7 @@ dev = [
     "ruff",
     "setuptools-scm",
     "mypy",
-    "redis",
-    "types-redis",
+    "redis>=8,<9",
 ]
 
 [tool.ruff]
