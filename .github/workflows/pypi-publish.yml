@@ -21,6 +21,7 @@ jobs:
   deploy:
     permissions:
       contents: read
+      id-token: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -41,13 +42,8 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         if: github.event_name == 'release' && github.event.release.prerelease
         with:
-          user: __token__
-          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
           repository-url: https://test.pypi.org/legacy/
 
       - name: Publish distribution to PyPI
         if: github.event_name == 'release' && !github.event.release.prerelease
         uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          user: __token__
-          password: ${{ secrets.PYPI_API_TOKEN }}
