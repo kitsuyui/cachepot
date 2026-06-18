@@ -29,7 +29,7 @@ def test_expire() -> None:
 def test_delete_expired_is_noop() -> None:
     r = redis.Redis(host="localhost", port=6379, db=0)
     cachestore = RedisCacheBackend(r)
-    assert cachestore.delete_expired() == 0
+    assert cachestore.delete_expired() is None
 
 
 def test_save_sets_ttl_atomically() -> None:

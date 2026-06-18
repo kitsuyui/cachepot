@@ -2,7 +2,7 @@ from typing import cast
 
 from redis import Redis
 
-from cachepot.backend import CacheBackendProtocol
+from cachepot.backend import CacheBackendProtocol, DeletedExpiredCount
 from cachepot.expire import Expiry, to_timedelta
 
 
@@ -33,14 +33,13 @@ class RedisCacheBackend(CacheBackendProtocol):
     def delete(self, key: bytes) -> None:
         self.redis.delete(key)
 
-    def delete_expired(self) -> int:
-        """Return 0: Redis expires entries via server-side TTL automatically.
+    def delete_expired(self) -> DeletedExpiredCount:
+        """Return ``None`` because Redis expires entries server-side.
 
         Redis does not expose an API to enumerate or count entries that have
         already been evicted by their TTL.  This method is a no-op that
         satisfies the ``CacheBackendProtocol`` contract; the actual expiry is
-        handled transparently by Redis.  Callers must not use the return value
-        of this method as a health or activity metric when using a Redis
-        backend — it will always be 0 regardless of how many entries expired.
+        handled transparently by Redis.  Callers must treat ``None`` as an
+        unknown deleted-entry count, not as zero expired entries.
         """
-        return 0
+        return None
