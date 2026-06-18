@@ -67,7 +67,7 @@ def test_sqlite_close_closes_connection() -> None:
         cachestore.save(b"1", b"2", expire_seconds=1)
         cachestore.close()
 
-        with pytest.raises(sqlite3.ProgrammingError):
+        with pytest.raises(RuntimeError, match="already closed"):
             cachestore.load(b"1")
 
 
@@ -77,8 +77,26 @@ def test_sqlite_context_manager_closes_connection() -> None:
             cachestore.save(b"1", b"2", expire_seconds=1)
             assert cachestore.load(b"1") == b"2"
 
-        with pytest.raises(sqlite3.ProgrammingError):
+        with pytest.raises(RuntimeError, match="already closed"):
             cachestore.load(b"1")
+
+
+def test_use_after_close_raises_runtime_error() -> None:
+    with tempfile.NamedTemporaryFile() as f:
+        cachestore = SQLiteCacheBackend(f.name)
+        cachestore.save(b"k", b"v", expire_seconds=60)
+        cachestore.close()
+
+        with pytest.raises(RuntimeError, match="already closed"):
+            cachestore.save(b"k2", b"v2", expire_seconds=60)
+        with pytest.raises(RuntimeError, match="already closed"):
+            cachestore.load(b"k")
+        with pytest.raises(RuntimeError, match="already closed"):
+            cachestore.exists(b"k")
+        with pytest.raises(RuntimeError, match="already closed"):
+            cachestore.delete(b"k")
+        with pytest.raises(RuntimeError, match="already closed"):
+            cachestore.delete_expired()
 
 
 def test_expire() -> None:
