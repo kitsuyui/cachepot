@@ -10,6 +10,19 @@ from cachepot.expire import Expiry, to_timedelta
 
 ConnectionLike = str | pathlib.Path | sqlite3.Connection
 
+_SCHEMA_VERSION = 1
+
+
+def _migrate(conn: sqlite3.Connection, from_version: int) -> None:
+    if from_version > _SCHEMA_VERSION:
+        raise RuntimeError(
+            f"cachepot database schema version {from_version} is newer than "
+            f"the current library version ({_SCHEMA_VERSION}). "
+            "Upgrade cachepot to open this database.",
+        )
+    conn.execute(f"PRAGMA user_version = {_SCHEMA_VERSION}")
+    conn.commit()
+
 
 def _init_schema(conn: sqlite3.Connection) -> None:
     conn.execute(
@@ -28,6 +41,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_cachepot
                   , expire_at
                   )""",
     )
+    version = conn.execute("PRAGMA user_version").fetchone()[0]
+    if version != _SCHEMA_VERSION:
+        _migrate(conn, version)
 
 
 def _open_and_init(path: str | pathlib.Path) -> sqlite3.Connection:
