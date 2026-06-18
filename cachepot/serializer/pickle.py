@@ -51,11 +51,23 @@ class _DeterministicPickler(_PicklerBase):
         self.write(pickle.FROZENSET)
         self.memoize(obj)
 
+    def save_dict(self, obj: dict[Any, Any]) -> None:
+        if self.bin:
+            self.write(pickle.EMPTY_DICT)
+        else:
+            self.write(pickle.MARK + pickle.DICT)
+        self.memoize(obj)
+        sorted_items = sorted(
+            obj.items(), key=lambda kv: _stable_pickle_sort_key(kv[0]),
+        )
+        self._batch_setitems(iter(sorted_items))
+
 
 _DeterministicPickler.dispatch[set] = _DeterministicPickler.save_set
 _DeterministicPickler.dispatch[frozenset] = (
     _DeterministicPickler.save_frozenset
 )
+_DeterministicPickler.dispatch[dict] = _DeterministicPickler.save_dict
 
 
 def _stable_pickle_sort_key(data: Any) -> bytes:
