@@ -1,5 +1,6 @@
 import io
 import pickle
+import sys
 from itertools import islice
 from typing import Any
 
@@ -51,7 +52,7 @@ class _DeterministicPickler(_PicklerBase):
         self.write(pickle.FROZENSET)
         self.memoize(obj)
 
-    def save_dict(self, obj: dict[Any, Any]) -> None:
+    def save_dict(self, obj: dict[Any, Any]) -> None:  # noqa: C901
         if self.bin:
             self.write(pickle.EMPTY_DICT)
         else:
@@ -60,7 +61,13 @@ class _DeterministicPickler(_PicklerBase):
         sorted_items = sorted(
             obj.items(), key=lambda kv: _stable_pickle_sort_key(kv[0]),
         )
-        self._batch_setitems(iter(sorted_items))
+        if sys.version_info >= (3, 14):
+            # Python 3.14 changed the private signature of
+            # ``_Pickler._batch_setitems`` to take the source object as a
+            # second positional argument.
+            self._batch_setitems(iter(sorted_items), obj)
+        else:
+            self._batch_setitems(iter(sorted_items))
 
 
 _DeterministicPickler.dispatch[set] = _DeterministicPickler.save_set
