@@ -6,7 +6,6 @@ import struct
 import tempfile
 import threading
 import time
-from datetime import datetime
 from typing import BinaryIO, cast
 
 from cachepot.backend import CacheBackendProtocol
@@ -38,8 +37,9 @@ class FileSystemCacheBackend(CacheBackendProtocol):
         *,
         expire_seconds: Expiry,
     ) -> None:
-        expire_at = datetime.now() + to_timedelta(expire_seconds)
-        expire_timestamp = expire_at.timestamp()
+        expire_timestamp = (
+            time.time() + to_timedelta(expire_seconds).total_seconds()
+        )
 
         with self.__lock:
             realpath = self.__get_real_path(key)
