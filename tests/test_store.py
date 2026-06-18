@@ -262,6 +262,10 @@ def test_proxy_returns_result_when_backend_write_fails() -> None:
     ]
     assert len(cache_write_warnings) == 1
     assert "testing" in str(cache_write_warnings[0].message)
+    # Warning must be attributed to the proxy call site (this file), not an
+    # internal frame — i.e. stacklevel must be exactly 4 (warn → _put_or_warn
+    # → __load_or_compute → _proxy → caller).
+    assert cache_write_warnings[0].filename == __file__
 
 
 def _make_store(tmpdir: str) -> CacheStore[str, str]:
