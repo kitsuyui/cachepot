@@ -169,6 +169,19 @@ class CacheStore(CacheStoreProtocol[T, S]):
 
         A ``TypeError`` is raised at proxy creation time when such a conflict
         is detected, before any calls are made.
+
+        **Cache write failures are demoted to warnings.**  When the proxy
+        stores a computed result and the backend raises any exception,
+        the exception is caught and emitted via :func:`warnings.warn` instead
+        of propagating to the caller.  The original function's return value
+        is still returned normally.  This is intentional graceful degradation:
+        the proxy remains functional even when the backend is unavailable,
+        at the cost of recomputing the result on every call.
+
+        This differs from calling :meth:`put` directly, where backend
+        exceptions propagate unchanged to the caller.  If your application
+        must surface cache write errors as exceptions, call :meth:`put`
+        explicitly rather than using a proxy.
         """
         conflicts = self._proxy_conflicts(original_function)
         if conflicts:
