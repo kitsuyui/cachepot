@@ -1,3 +1,4 @@
+from types import TracebackType
 from typing import Protocol
 
 from cachepot.expire import Expiry
@@ -19,3 +20,14 @@ class CacheBackendProtocol(Protocol):
     def delete(self, key: bytes) -> None: ...
 
     def delete_expired(self) -> int: ...
+
+    def close(self) -> None: ...
+
+    def __enter__(self) -> "CacheBackendProtocol": ...
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None: ...
