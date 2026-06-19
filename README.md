@@ -18,9 +18,7 @@ $ pip install cachepot
 ## Usage
 
 ```python
->>> from cachepot.store import CacheStore
->>> from cachepot.backend.filesystem import FileSystemCacheBackend
->>> from cachepot.serializer.pickle import PickleSerializer
+>>> from cachepot import CacheStore, FileSystemCacheBackend, PickleSerializer
 >>> store = CacheStore(
 ...     namespace='testing',
 ...     key_serializer=PickleSerializer(),
