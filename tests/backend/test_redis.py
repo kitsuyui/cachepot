@@ -1,5 +1,6 @@
 import time
 from datetime import timedelta
+from unittest.mock import MagicMock
 
 import redis
 
@@ -78,3 +79,21 @@ def test_save_accepts_timedelta_expire_seconds() -> None:
         assert cachestore.load(b"td-key") == b"v"
     finally:
         cachestore.delete(b"td-key")
+
+
+def test_save_zero_expire_skips_write() -> None:
+    """expire_seconds=0 must not raise a ResponseError.
+
+    Redis rejects EX=0 at the server level.  The backend handles this by
+    skipping the write entirely — the result is the same as an immediately
+    expired entry: load() returns None, matching FileSystem and SQLite
+    backend behaviour.
+    """
+    mock_redis = MagicMock()
+    mock_redis.get.return_value = None
+    cachestore = RedisCacheBackend(mock_redis)
+
+    cachestore.save(b"key", b"value", expire_seconds=0)
+
+    mock_redis.set.assert_not_called()
+    assert cachestore.load(b"key") is None
