@@ -86,8 +86,8 @@ INSERT OR REPLACE INTO cachepot
             self.conn.commit()
 
     def load(self, key: bytes) -> bytes | None:
-        current_datetime = datetime.now()
         with self._lock:
+            current_datetime = datetime.now()
             result = self.conn.execute(
                 """\
         SELECT value
@@ -101,8 +101,8 @@ INSERT OR REPLACE INTO cachepot
         return None
 
     def exists(self, key: bytes) -> bool:
-        current_datetime = datetime.now()
         with self._lock:
+            current_datetime = datetime.now()
             result = self.conn.execute(
                 """\
         SELECT 1
