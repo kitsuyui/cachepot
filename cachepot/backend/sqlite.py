@@ -43,6 +43,7 @@ def _open_and_init(path: str | pathlib.Path) -> sqlite3.Connection:
 class SQLiteCacheBackend(CacheBackendProtocol):
     conn: sqlite3.Connection
     _lock: threading.Lock
+    _closed: bool
 
     def __init__(self, conn: ConnectionLike) -> None:
         if isinstance(conn, (str, pathlib.Path)):
@@ -51,10 +52,16 @@ class SQLiteCacheBackend(CacheBackendProtocol):
             _init_schema(conn)
         self._lock = threading.Lock()
         self.conn = conn
+        self._closed = False
 
     def close(self) -> None:
         with self._lock:
+            self._closed = True
             self.conn.close()
+
+    def _check_open(self) -> None:
+        if self._closed:
+            raise RuntimeError("SQLiteCacheBackend is already closed")
 
     def __enter__(self) -> "SQLiteCacheBackend":
         return self
@@ -75,6 +82,7 @@ class SQLiteCacheBackend(CacheBackendProtocol):
         expire_seconds: Expiry,
     ) -> None:
         with self._lock:
+            self._check_open()
             expire_at = (
                 datetime.now(timezone.utc) + to_timedelta(expire_seconds)
             ).isoformat()
@@ -90,6 +98,7 @@ INSERT OR REPLACE INTO cachepot
     def load(self, key: bytes) -> bytes | None:
         current_datetime = datetime.now(timezone.utc).isoformat()
         with self._lock:
+            self._check_open()
             result = self.conn.execute(
                 """\
         SELECT value
@@ -105,6 +114,7 @@ INSERT OR REPLACE INTO cachepot
     def exists(self, key: bytes) -> bool:
         current_datetime = datetime.now(timezone.utc).isoformat()
         with self._lock:
+            self._check_open()
             result = self.conn.execute(
                 """\
         SELECT 1
@@ -117,6 +127,7 @@ INSERT OR REPLACE INTO cachepot
 
     def delete(self, key: bytes) -> None:
         with self._lock:
+            self._check_open()
             self.conn.execute(
                 """\
         DELETE
@@ -129,6 +140,7 @@ INSERT OR REPLACE INTO cachepot
     def delete_expired(self) -> int:
         """Delete all expired rows and return the number of deleted rows."""
         with self._lock:
+            self._check_open()
             cur = self.conn.execute(
                 """\
         DELETE

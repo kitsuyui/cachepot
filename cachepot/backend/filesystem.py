@@ -37,11 +37,10 @@ class FileSystemCacheBackend(CacheBackendProtocol):
         *,
         expire_seconds: Expiry,
     ) -> None:
-        expire_timestamp = (
-            time.time() + to_timedelta(expire_seconds).total_seconds()
-        )
-
         with self.__lock:
+            expire_timestamp = (
+                time.time() + to_timedelta(expire_seconds).total_seconds()
+            )
             realpath = self.__get_real_path(key)
             realpath.parent.mkdir(parents=True, exist_ok=True)
 
