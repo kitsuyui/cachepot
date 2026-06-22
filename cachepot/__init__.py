@@ -12,8 +12,10 @@ from .backend.sqlite import SQLiteCacheBackend
 from .serializer.json import JSONSerializer
 from .serializer.pickle import PickleSerializer
 from .serializer.str import StringSerializer
+from .store import CacheStore
 
 __all__ = [
+    "CacheStore",
     "CachepotWarning",
     "FileSystemCacheBackend",
     "JSONSerializer",

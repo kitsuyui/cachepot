@@ -11,10 +11,13 @@ import pytest
 from typing_extensions import assert_type
 
 import cachepot
-from cachepot.backend.filesystem import FileSystemCacheBackend
-from cachepot.serializer.pickle import PickleSerializer
-from cachepot.serializer.str import StringSerializer
-from cachepot.store import CacheProxyProtocol, CacheStore
+from cachepot import (
+    CacheStore,
+    FileSystemCacheBackend,
+    PickleSerializer,
+    StringSerializer,
+)
+from cachepot.store import CacheProxyProtocol
 
 if TYPE_CHECKING:
     typed_proxy = cast(CacheProxyProtocol[str, int], None)
@@ -264,7 +267,8 @@ def test_proxy_returns_result_when_backend_write_fails() -> None:
     assert len(cache_write_warnings) == 1
     assert "testing" in str(cache_write_warnings[0].message)
     assert issubclass(
-        cache_write_warnings[0].category, cachepot.CachepotWarning,
+        cache_write_warnings[0].category,
+        cachepot.CachepotWarning,
     )
 
 
