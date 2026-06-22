@@ -10,10 +10,13 @@ from unittest.mock import MagicMock
 import pytest
 from typing_extensions import assert_type
 
-from cachepot.backend.filesystem import FileSystemCacheBackend
-from cachepot.serializer.pickle import PickleSerializer
-from cachepot.serializer.str import StringSerializer
-from cachepot.store import CacheProxyProtocol, CacheStore
+from cachepot import (
+    CacheStore,
+    FileSystemCacheBackend,
+    PickleSerializer,
+    StringSerializer,
+)
+from cachepot.store import CacheProxyProtocol
 
 if TYPE_CHECKING:
     typed_proxy = cast(CacheProxyProtocol[str, int], None)
