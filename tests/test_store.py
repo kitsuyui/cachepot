@@ -115,6 +115,24 @@ def test_proxy_caches_none_return_value() -> None:
         assert call_count == 1
 
 
+def test_proxy_expire_none_uses_store_default() -> None:
+    backend = MagicMock()
+    backend.load.return_value = None
+
+    store: CacheStore[str, int] = CacheStore(
+        namespace="testing",
+        key_serializer=StringSerializer(),
+        value_serializer=PickleSerializer(),
+        backend=backend,
+        default_expire_seconds=60,
+    )
+
+    proxied = store.proxy(lambda: 42)
+
+    assert proxied(cache_key="key", expire_seconds=None) == 42
+    assert backend.save.call_args.kwargs["expire_seconds"] == 60
+
+
 class _CountingFunction:
     def __init__(self) -> None:
         self.call_count = 0
