@@ -20,14 +20,7 @@ CREATE TABLE IF NOT EXISTS cachepot
            , expire_at timestamp
            )""",
     )
-    conn.execute(
-        """\
-CREATE UNIQUE INDEX IF NOT EXISTS idx_cachepot
-                 ON cachepot
-                  ( key
-                  , expire_at
-                  )""",
-    )
+    conn.execute("DROP INDEX IF EXISTS idx_cachepot")
 
 
 def _open_and_init(path: str | pathlib.Path) -> sqlite3.Connection:
