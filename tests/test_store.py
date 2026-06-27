@@ -330,6 +330,30 @@ def test_direct_put_get_is_thread_safe() -> None:
         assert all(isinstance(r, int) for r in results)
 
 
+def test_cachestore_context_manager_calls_backend_close() -> None:
+    """CacheStore.__exit__ must call backend.close()."""
+    backend = MagicMock()
+    backend.load.return_value = None
+    store: CacheStore[str, int] = CacheStore(
+        namespace="testing",
+        key_serializer=StringSerializer(),
+        value_serializer=PickleSerializer(),
+        backend=backend,
+        default_expire_seconds=60,
+    )
+    with store:
+        pass
+    backend.close.assert_called_once()
+
+
+def test_cachestore_context_manager_returns_self() -> None:
+    """The ``with`` statement target must be the CacheStore itself."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        store = _make_store(tmpdir)
+        with store as s:
+            assert s is store
+
+
 def test_get_raises_with_key_context_on_deserialize_failure() -> None:
     """get() must include namespace/key in the error on corrupt data."""
     with tempfile.TemporaryDirectory() as tmpdir:

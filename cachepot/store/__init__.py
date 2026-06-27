@@ -2,6 +2,7 @@ import inspect
 import threading
 import warnings
 from collections.abc import Callable
+from types import TracebackType
 from typing import Any, Protocol, TypeVar
 
 from cachepot.backend import CacheBackendProtocol
@@ -53,6 +54,17 @@ class CacheStoreProtocol(Protocol[T, S]):
         backends as a liveness signal.
         """
         ...
+
+    def close(self) -> None: ...
+
+    def __enter__(self) -> "CacheStoreProtocol[T, S]": ...
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None: ...
 
 
 class CacheStore(CacheStoreProtocol[T, S]):
@@ -225,3 +237,17 @@ class CacheStore(CacheStoreProtocol[T, S]):
 
     def delete_expired(self) -> int:
         return self.backend.delete_expired()
+
+    def close(self) -> None:
+        self.backend.close()
+
+    def __enter__(self) -> "CacheStore[T, S]":
+        return self
+
+    def __exit__(
+        self,
+        _exc_type: type[BaseException] | None,
+        _exc: BaseException | None,
+        _traceback: TracebackType | None,
+    ) -> None:
+        self.close()

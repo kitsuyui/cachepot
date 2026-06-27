@@ -302,6 +302,15 @@ def test_exists() -> None:
         assert not cachestore.exists(b"k")
 
 
+def test_filesystem_backend_is_context_manager() -> None:
+    """FileSystemCacheBackend must work as a context manager."""
+    with tempfile.TemporaryDirectory() as tmpdir, FileSystemCacheBackend(
+        pathlib.Path(tmpdir),
+    ) as backend:
+        backend.save(b"k", b"v", expire_seconds=60)
+        assert backend.load(b"k") == b"v"
+
+
 def test_exists_does_not_delete_expired_entry() -> None:
     """exists() must be side-effect-free: calling it on an expired entry
     must not delete the file from disk."""
