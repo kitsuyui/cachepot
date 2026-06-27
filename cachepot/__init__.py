@@ -6,6 +6,7 @@ from . import (
     store,
 )
 from ._version import __version__
+from ._warnings import CachepotWarning
 from .backend.filesystem import FileSystemCacheBackend
 from .backend.sqlite import SQLiteCacheBackend
 from .serializer.json import JSONSerializer
@@ -15,6 +16,7 @@ from .store import CacheStore
 
 __all__ = [
     "CacheStore",
+    "CachepotWarning",
     "FileSystemCacheBackend",
     "JSONSerializer",
     "PickleSerializer",
