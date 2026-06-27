@@ -37,7 +37,7 @@ dev = [
     "ruff",
     "setuptools-scm",
     "mypy",
-    "redis>=8,<9",
+    "cachepot[redis]",
 ]
 
 [tool.ruff]
