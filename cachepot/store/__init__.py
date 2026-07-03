@@ -21,7 +21,14 @@ class CacheProxyProtocol(Protocol[T, S_co]):
         cache_key: T,
         expire_seconds: Expiry | None = None,
         **kwargs: Any,
-    ) -> S_co: ...
+    ) -> S_co:
+        """Call the proxy using *cache_key* as the cache entry key.
+
+        Passing ``expire_seconds=None`` does not disable expiration.  It
+        lets the wrapped store use its ``default_expire_seconds`` value
+        when saving a cache miss.
+        """
+        ...
 
 
 class CacheStoreProtocol(Protocol[T, S]):
@@ -181,6 +188,11 @@ class CacheStore(CacheStoreProtocol[T, S]):
         declare parameters named ``cache_key`` or ``expire_seconds``; if it
         does, those arguments are silently captured by the proxy and never
         reach the wrapped function, causing a ``TypeError`` at call time.
+
+        Passing ``expire_seconds=None`` to the proxy does not disable
+        expiration; cache misses are stored with this store's
+        ``default_expire_seconds`` value, the same default used by
+        ``put()``.
 
         A ``TypeError`` is raised at proxy creation time when such a conflict
         is detected, before any calls are made.
