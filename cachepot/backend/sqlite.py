@@ -1,7 +1,7 @@
 import pathlib
 import sqlite3
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from types import TracebackType
 from typing import cast
 
@@ -83,7 +83,9 @@ class SQLiteCacheBackend(CacheBackendProtocol):
     ) -> None:
         with self._lock:
             self._check_open()
-            expire_at = datetime.now() + to_timedelta(expire_seconds)
+            expire_at = (
+                datetime.now(timezone.utc) + to_timedelta(expire_seconds)
+            ).isoformat()
             self.conn.execute(
                 """\
 INSERT OR REPLACE INTO cachepot
@@ -94,7 +96,7 @@ INSERT OR REPLACE INTO cachepot
             self.conn.commit()
 
     def load(self, key: bytes) -> bytes | None:
-        current_datetime = datetime.now()
+        current_datetime = datetime.now(timezone.utc).isoformat()
         with self._lock:
             self._check_open()
             result = self.conn.execute(
@@ -110,7 +112,7 @@ INSERT OR REPLACE INTO cachepot
         return None
 
     def exists(self, key: bytes) -> bool:
-        current_datetime = datetime.now()
+        current_datetime = datetime.now(timezone.utc).isoformat()
         with self._lock:
             self._check_open()
             result = self.conn.execute(
@@ -144,7 +146,7 @@ INSERT OR REPLACE INTO cachepot
         DELETE
           FROM cachepot
          WHERE expire_at <= ?""",
-                (datetime.now(),),
+                (datetime.now(timezone.utc).isoformat(),),
             )
             self.conn.commit()
         return cur.rowcount

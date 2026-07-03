@@ -4,7 +4,7 @@ import sqlite3
 import tempfile
 import time
 import unittest.mock
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -17,8 +17,11 @@ _CONTROLLED_LOCK_TIME: list[datetime] = [datetime(1970, 1, 1)]
 
 class _ControlledDateTime:
     @classmethod
-    def now(cls):
-        return _CONTROLLED_CURRENT_TIME[0]
+    def now(cls, tz: timezone | None = None) -> datetime:
+        dt = _CONTROLLED_CURRENT_TIME[0]
+        if tz is not None:
+            return dt.replace(tzinfo=tz)
+        return dt
 
 
 class _AdvancingLock:
