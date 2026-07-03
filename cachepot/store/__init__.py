@@ -232,7 +232,7 @@ class CacheStore(CacheStoreProtocol[T, S]):
                 f"Cache write failed: "
                 f"namespace={self.namespace!r}, "
                 f"key={cache_key!r}: {exc}",
-                stacklevel=5,
+                stacklevel=4,
             )
 
     def delete(self, key: T) -> None:
