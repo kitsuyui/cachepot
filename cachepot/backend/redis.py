@@ -22,7 +22,13 @@ class RedisCacheBackend(CacheBackendProtocol):
         # ``SET key value EX seconds`` is a single Redis command, so the
         # value and its TTL land together. The previous pipeline form
         # could leave the key without a TTL if EXPIRE failed after SET.
-        self.redis.set(key, value, ex=to_timedelta(expire_seconds))
+        td = to_timedelta(expire_seconds)
+        if td.total_seconds() == 0:
+            # Redis rejects EX=0. A zero-second TTL means the entry expires
+            # immediately; skip the write so load() returns None, matching
+            # FileSystem and SQLite backend behaviour.
+            return
+        self.redis.set(key, value, ex=td)
 
     def load(self, key: bytes) -> bytes | None:
         return cast(bytes, self.redis.get(key))
