@@ -1,6 +1,7 @@
 import concurrent.futures
 import functools
 import tempfile
+import threading
 import time
 import warnings
 from collections.abc import Callable
@@ -159,6 +160,60 @@ def test_proxy_no_double_execution_under_concurrency() -> None:
         results = _run_concurrent(proxied, 8)
         assert fn.call_count == 1
         assert results == [42] * 8
+
+
+def test_proxy_misses_for_different_keys_run_concurrently() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        store: CacheStore[str, int] = CacheStore(
+            namespace="testing",
+            key_serializer=StringSerializer(),
+            value_serializer=PickleSerializer(),
+            backend=FileSystemCacheBackend(tmpdir),
+            default_expire_seconds=60,
+        )
+        barrier = threading.Barrier(2)
+
+        def slow(value: int) -> int:
+            barrier.wait(timeout=1)
+            return value
+
+        proxied = store.proxy(slow)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            first = pool.submit(proxied, 1, cache_key="key-a")
+            second = pool.submit(proxied, 2, cache_key="key-b")
+
+            assert first.result(timeout=1) == 1
+            assert second.result(timeout=1) == 2
+
+
+def test_proxy_miss_does_not_block_other_key_get() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        store: CacheStore[str, int] = CacheStore(
+            namespace="testing",
+            key_serializer=StringSerializer(),
+            value_serializer=PickleSerializer(),
+            backend=FileSystemCacheBackend(tmpdir),
+            default_expire_seconds=60,
+        )
+        entered = threading.Event()
+        release = threading.Event()
+        store.put("ready-key", 7)
+
+        def slow() -> int:
+            entered.set()
+            release.wait(timeout=2)
+            return 42
+
+        proxied = store.proxy(slow)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            pending = pool.submit(proxied, cache_key="slow-key")
+            assert entered.wait(timeout=1)
+
+            immediate = pool.submit(store.get, "ready-key")
+            assert immediate.result(timeout=1) == 7
+
+            release.set()
+            assert pending.result(timeout=1) == 42
 
 
 def _returns_seven() -> int:

@@ -1,6 +1,7 @@
 import inspect
 import threading
 import warnings
+import weakref
 from collections.abc import Callable
 from typing import Any, Protocol, TypeVar
 
@@ -76,11 +77,26 @@ class CacheStore(CacheStoreProtocol[T, S]):
         self.backend = backend
         self.default_expire_seconds = default_expire_seconds
         self._lock = threading.RLock()
+        self._key_locks: weakref.WeakValueDictionary[bytes, Any] = (
+            weakref.WeakValueDictionary()
+        )
 
     def __get_real_key(self, key: T) -> bytes:
         serialized_key = self.key_serializer.serialize(key)
         ns_bytes = self.namespace.encode()
         return len(ns_bytes).to_bytes(4, "big") + ns_bytes + serialized_key
+
+    def _get_or_create_key_lock(self, real_key: bytes) -> Any:
+        lock = self._key_locks.get(real_key)
+        if lock is None:
+            lock = threading.RLock()
+            self._key_locks[real_key] = lock
+        return lock
+
+    def _real_key_and_lock(self, key: T) -> tuple[bytes, Any]:
+        with self._lock:
+            real_key = self.__get_real_key(key)
+            return real_key, self._get_or_create_key_lock(real_key)
 
     def _deserialize(self, loaded: bytes, key: T) -> S:
         try:
@@ -92,16 +108,16 @@ class CacheStore(CacheStoreProtocol[T, S]):
             ) from exc
 
     def get(self, key: T) -> S | None:
-        with self._lock:
-            real_key = self.__get_real_key(key)
+        real_key, key_lock = self._real_key_and_lock(key)
+        with key_lock, self._lock:
             loaded = self.backend.load(real_key)
             if loaded is None:
                 return None
             return self._deserialize(loaded, key)
 
     def has(self, key: T) -> bool:
-        with self._lock:
-            real_key = self.__get_real_key(key)
+        real_key, key_lock = self._real_key_and_lock(key)
+        with key_lock, self._lock:
             return self.backend.exists(real_key)
 
     def put(
@@ -111,10 +127,10 @@ class CacheStore(CacheStoreProtocol[T, S]):
         *,
         expire_seconds: Expiry | None = None,
     ) -> None:
-        with self._lock:
+        real_key, key_lock = self._real_key_and_lock(key)
+        with key_lock, self._lock:
             if expire_seconds is None:
                 expire_seconds = self.default_expire_seconds
-            real_key = self.__get_real_key(key)
             serialized_value = self.value_serializer.serialize(value)
             self.backend.save(
                 real_key,
@@ -192,11 +208,12 @@ class CacheStore(CacheStoreProtocol[T, S]):
         # Inspect the backend directly so a stored ``None`` value is
         # distinguishable from a cache miss (the backend returns ``None``
         # only when the key is absent; a stored value is always bytes).
-        real_key = self.__get_real_key(cache_key)
-        with self._lock:
-            loaded = self.backend.load(real_key)
-            if loaded is not None:
-                return self._deserialize(loaded, cache_key)
+        real_key, key_lock = self._real_key_and_lock(cache_key)
+        with key_lock:
+            with self._lock:
+                loaded = self.backend.load(real_key)
+                if loaded is not None:
+                    return self._deserialize(loaded, cache_key)
 
             result = original_function(*args, **kwargs)
             self._put_or_warn(cache_key, result, expire_seconds)
@@ -219,8 +236,8 @@ class CacheStore(CacheStoreProtocol[T, S]):
             )
 
     def delete(self, key: T) -> None:
-        with self._lock:
-            real_key = self.__get_real_key(key)
+        real_key, key_lock = self._real_key_and_lock(key)
+        with key_lock, self._lock:
             self.backend.delete(real_key)
 
     def delete_expired(self) -> int:
