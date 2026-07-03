@@ -292,6 +292,44 @@ def test_exists() -> None:
         assert not cachestore.exists(b"k")
 
 
+def test_delete_expired_skips_non_cachepot_file() -> None:
+    """delete_expired() must not remove files that lack the cachepot header."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = pathlib.Path(tmpdir)
+        cachestore = FileSystemCacheBackend(cache_dir)
+        non_cache = cache_dir / "README"
+        non_cache.write_bytes(b"not a cachepot file")
+
+        assert cachestore.delete_expired() == 0
+        assert non_cache.exists()
+
+
+def test_delete_expired_skips_file_with_truncated_header() -> None:
+    """A file shorter than the 8-byte expiry header is not deleted."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = pathlib.Path(tmpdir)
+        cachestore = FileSystemCacheBackend(cache_dir)
+        short_file = cache_dir / "too-short"
+        short_file.write_bytes(b"\x00\x01\x02")
+
+        assert cachestore.delete_expired() == 0
+        assert short_file.exists()
+
+
+def test_load_returns_none_for_truncated_header_file() -> None:
+    """load() must return None for a file at the key-derived path whose header
+    is too short to unpack (e.g. a partially written file)."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = pathlib.Path(tmpdir)
+        cachestore = FileSystemCacheBackend(cache_dir)
+        key = b"collision-key"
+        key_path = _cache_entry_path(cache_dir, key)
+        key_path.write_bytes(b"\x00\x01")  # shorter than the 8-byte header
+
+        assert cachestore.load(key) is None
+        assert key_path.exists()
+
+
 def test_exists_does_not_delete_expired_entry() -> None:
     """exists() must be side-effect-free: calling it on an expired entry
     must not delete the file from disk."""

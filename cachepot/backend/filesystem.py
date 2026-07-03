@@ -78,17 +78,22 @@ class FileSystemCacheBackend(CacheBackendProtocol):
                 return f.read()
         return None
 
-    def __can_load(self, path: pathlib.Path) -> bool:
-        return path.is_file() and not self.__delete_if_expired(path)
+    def __is_loadable(self, path: pathlib.Path) -> bool:
+        ts = self.__read_expire_timestamp(path)
+        return ts is not None and not self.__delete_if_expired(path)
 
-    def __read_expire_timestamp(self, path: pathlib.Path) -> float:
+    def __can_load(self, path: pathlib.Path) -> bool:
+        return path.is_file() and self.__is_loadable(path)
+
+    def __read_expire_timestamp(self, path: pathlib.Path) -> float | None:
         with contextlib.suppress(OSError, struct.error), path.open("rb") as f:
             raw = f.read(_EXPIRY_HEADER_SIZE)
             return struct.unpack(_EXPIRY_HEADER_FORMAT, raw)[0]
-        return float("-inf")
+        return None
 
     def __is_expired(self, path: pathlib.Path) -> bool:
-        return self.__read_expire_timestamp(path) < time.time()
+        ts = self.__read_expire_timestamp(path)
+        return ts is not None and ts < time.time()
 
     def exists(self, key: bytes) -> bool:
         path = self.__get_real_path(key)
