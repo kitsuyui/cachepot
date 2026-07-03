@@ -33,6 +33,55 @@ class _AdvancingLock:
         return None
 
 
+def test_schema_version_is_set_on_new_database() -> None:
+    """A freshly initialised database must have user_version = 1."""
+    with tempfile.NamedTemporaryFile(suffix=".db") as f:
+        conn = sqlite3.connect(f.name)
+        SQLiteCacheBackend(conn)
+        version = conn.execute("PRAGMA user_version").fetchone()[0]
+        assert version == 1
+        conn.close()
+
+
+def test_schema_version_upgrades_unversioned_database() -> None:
+    """An existing database with user_version = 0 is accepted and upgraded
+    to version 1 without requiring a data migration."""
+    with tempfile.NamedTemporaryFile(suffix=".db") as f:
+        # Simulate a pre-versioning database: create the schema manually,
+        # leave user_version at the SQLite default of 0.
+        conn = sqlite3.connect(f.name)
+        conn.execute(
+            "CREATE TABLE cachepot"
+            " (key BLOB PRIMARY KEY, value BLOB, expire_at timestamp)",
+        )
+        conn.commit()
+        conn.close()
+
+        # Opening with SQLiteCacheBackend must succeed and migrate
+        # user_version to 1.
+        with SQLiteCacheBackend(f.name) as backend:
+            backend.save(b"k", b"v", expire_seconds=60)
+            assert backend.load(b"k") == b"v"
+
+        conn2 = sqlite3.connect(f.name)
+        version = conn2.execute("PRAGMA user_version").fetchone()[0]
+        assert version == 1
+        conn2.close()
+
+
+def test_schema_version_raises_on_future_schema() -> None:
+    """Opening a database whose user_version exceeds the current library
+    version must raise RuntimeError rather than silently misinterpreting it."""
+    with tempfile.NamedTemporaryFile(suffix=".db") as f:
+        conn = sqlite3.connect(f.name)
+        conn.execute("PRAGMA user_version = 999")
+        conn.commit()
+        conn.close()
+
+        with pytest.raises(RuntimeError, match="schema version 999"):
+            SQLiteCacheBackend(f.name)
+
+
 def test_sqlite_connection() -> None:
     with tempfile.NamedTemporaryFile() as f:
         cachestore = SQLiteCacheBackend(pathlib.Path(f.name))
