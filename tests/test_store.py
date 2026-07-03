@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     typed_store = cast(CacheStore[str, int], None)
     proxied_increment = typed_store.proxy(lambda value: value + 1)
     assert_type(proxied_increment(1, cache_key="key"), int)
-    assert_type(typed_store.delete_expired(), int)
+    assert_type(typed_store.delete_expired(), int | None)
 
 
 def test_basis() -> None:
@@ -89,6 +89,21 @@ def test_delete_expired() -> None:
         assert store.get("expired") is None
         assert store.get("live") == 2
         assert store.delete_expired() == 0
+
+
+def test_delete_expired_propagates_unknown_count() -> None:
+    backend = MagicMock()
+    backend.delete_expired.return_value = None
+
+    store: CacheStore[str, int] = CacheStore(
+        namespace="testing",
+        key_serializer=StringSerializer(),
+        value_serializer=PickleSerializer(),
+        backend=backend,
+        default_expire_seconds=60,
+    )
+
+    assert store.delete_expired() is None
 
 
 def test_proxy_caches_none_return_value() -> None:

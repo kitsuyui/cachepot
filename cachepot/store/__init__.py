@@ -5,7 +5,7 @@ import weakref
 from collections.abc import Callable
 from typing import Any, Protocol, TypeVar
 
-from cachepot.backend import CacheBackendProtocol
+from cachepot.backend import CacheBackendProtocol, DeletedExpiredCount
 from cachepot.expire import Expiry
 from cachepot.serializer import SerializerProtocol
 
@@ -44,14 +44,13 @@ class CacheStoreProtocol(Protocol[T, S]):
 
     def delete(self, key: T) -> None: ...
 
-    def delete_expired(self) -> int:
-        """Return the number of expired entries removed.
+    def delete_expired(self) -> DeletedExpiredCount:
+        """Delete expired entries and return the removed count when known.
 
-        Implementations backed by a TTL-aware store (e.g. Redis) that expire
-        entries autonomously may always return 0 — the backend still enforces
-        TTLs, but cannot count entries that were evicted without an explicit
-        deletion call.  Do not rely on a non-zero return value from such
-        backends as a liveness signal.
+        Implementations backed by a TTL-aware store (e.g. Redis) may expire
+        entries autonomously.  Such backends return ``None`` when the deleted
+        count is not observable.  Do not use this return value as a health or
+        activity metric unless the selected backend documents a count.
         """
         ...
 
@@ -240,5 +239,5 @@ class CacheStore(CacheStoreProtocol[T, S]):
         with key_lock, self._lock:
             self.backend.delete(real_key)
 
-    def delete_expired(self) -> int:
+    def delete_expired(self) -> DeletedExpiredCount:
         return self.backend.delete_expired()
