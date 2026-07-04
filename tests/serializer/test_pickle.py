@@ -49,6 +49,15 @@ def test_pickle_serializer_stabilizes_hash_randomized_sets() -> None:
     )
 
 
+def test_pickle_serializer_stabilizes_dict_insertion_order() -> None:
+    serializer = PickleSerializer()
+    d1 = {"a": 1, "b": 2}
+    d2 = {"b": 2, "a": 1}
+    assert d1 == d2
+    assert serializer.serialize(d1) == serializer.serialize(d2)
+    assert serializer.deserialize(serializer.serialize(d1)) == d1
+
+
 def _serialize_frozenset_with_hash_seed(seed: str) -> bytes:
     code = """
 from cachepot.serializer.pickle import PickleSerializer
