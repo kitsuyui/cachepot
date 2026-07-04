@@ -1,11 +1,12 @@
 import inspect
 import threading
 import warnings
+import weakref
 from collections.abc import Callable
 from typing import Any, Protocol, TypeVar
 
 from cachepot._warnings import CachepotWarning
-from cachepot.backend import CacheBackendProtocol
+from cachepot.backend import CacheBackendProtocol, DeletedExpiredCount
 from cachepot.expire import Expiry
 from cachepot.serializer import SerializerProtocol
 
@@ -21,7 +22,14 @@ class CacheProxyProtocol(Protocol[T, S_co]):
         cache_key: T,
         expire_seconds: Expiry | None = None,
         **kwargs: Any,
-    ) -> S_co: ...
+    ) -> S_co:
+        """Call the proxy using *cache_key* as the cache entry key.
+
+        Passing ``expire_seconds=None`` does not disable expiration.  It
+        lets the wrapped store use its ``default_expire_seconds`` value
+        when saving a cache miss.
+        """
+        ...
 
 
 class CacheStoreProtocol(Protocol[T, S]):
@@ -44,14 +52,13 @@ class CacheStoreProtocol(Protocol[T, S]):
 
     def delete(self, key: T) -> None: ...
 
-    def delete_expired(self) -> int:
-        """Return the number of expired entries removed.
+    def delete_expired(self) -> DeletedExpiredCount:
+        """Delete expired entries and return the removed count when known.
 
-        Implementations backed by a TTL-aware store (e.g. Redis) that expire
-        entries autonomously may always return 0 — the backend still enforces
-        TTLs, but cannot count entries that were evicted without an explicit
-        deletion call.  Do not rely on a non-zero return value from such
-        backends as a liveness signal.
+        Implementations backed by a TTL-aware store (e.g. Redis) may expire
+        entries autonomously.  Such backends return ``None`` when the deleted
+        count is not observable.  Do not use this return value as a health or
+        activity metric unless the selected backend documents a count.
         """
         ...
 
@@ -77,11 +84,26 @@ class CacheStore(CacheStoreProtocol[T, S]):
         self.backend = backend
         self.default_expire_seconds = default_expire_seconds
         self._lock = threading.RLock()
+        self._key_locks: weakref.WeakValueDictionary[bytes, Any] = (
+            weakref.WeakValueDictionary()
+        )
 
     def __get_real_key(self, key: T) -> bytes:
         serialized_key = self.key_serializer.serialize(key)
         ns_bytes = self.namespace.encode()
         return len(ns_bytes).to_bytes(4, "big") + ns_bytes + serialized_key
+
+    def _get_or_create_key_lock(self, real_key: bytes) -> Any:
+        lock = self._key_locks.get(real_key)
+        if lock is None:
+            lock = threading.RLock()
+            self._key_locks[real_key] = lock
+        return lock
+
+    def _real_key_and_lock(self, key: T) -> tuple[bytes, Any]:
+        with self._lock:
+            real_key = self.__get_real_key(key)
+            return real_key, self._get_or_create_key_lock(real_key)
 
     def _deserialize(self, loaded: bytes, key: T) -> S:
         try:
@@ -93,16 +115,16 @@ class CacheStore(CacheStoreProtocol[T, S]):
             ) from exc
 
     def get(self, key: T) -> S | None:
-        with self._lock:
-            real_key = self.__get_real_key(key)
+        real_key, key_lock = self._real_key_and_lock(key)
+        with key_lock, self._lock:
             loaded = self.backend.load(real_key)
             if loaded is None:
                 return None
             return self._deserialize(loaded, key)
 
     def has(self, key: T) -> bool:
-        with self._lock:
-            real_key = self.__get_real_key(key)
+        real_key, key_lock = self._real_key_and_lock(key)
+        with key_lock, self._lock:
             return self.backend.exists(real_key)
 
     def put(
@@ -112,10 +134,10 @@ class CacheStore(CacheStoreProtocol[T, S]):
         *,
         expire_seconds: Expiry | None = None,
     ) -> None:
-        with self._lock:
+        real_key, key_lock = self._real_key_and_lock(key)
+        with key_lock, self._lock:
             if expire_seconds is None:
                 expire_seconds = self.default_expire_seconds
-            real_key = self.__get_real_key(key)
             serialized_value = self.value_serializer.serialize(value)
             self.backend.save(
                 real_key,
@@ -168,8 +190,26 @@ class CacheStore(CacheStoreProtocol[T, S]):
         does, those arguments are silently captured by the proxy and never
         reach the wrapped function, causing a ``TypeError`` at call time.
 
+        Passing ``expire_seconds=None`` to the proxy does not disable
+        expiration; cache misses are stored with this store's
+        ``default_expire_seconds`` value, the same default used by
+        ``put()``.
+
         A ``TypeError`` is raised at proxy creation time when such a conflict
         is detected, before any calls are made.
+
+        **Cache write failures are demoted to warnings.**  When the proxy
+        stores a computed result and the backend raises any exception,
+        the exception is caught and emitted via :func:`warnings.warn` instead
+        of propagating to the caller.  The original function's return value
+        is still returned normally.  This is intentional graceful degradation:
+        the proxy remains functional even when the backend is unavailable,
+        at the cost of recomputing the result on every call.
+
+        This differs from calling :meth:`put` directly, where backend
+        exceptions propagate unchanged to the caller.  If your application
+        must surface cache write errors as exceptions, call :meth:`put`
+        explicitly rather than using a proxy.
         """
         conflicts = self._proxy_conflicts(original_function)
         if conflicts:
@@ -193,11 +233,12 @@ class CacheStore(CacheStoreProtocol[T, S]):
         # Inspect the backend directly so a stored ``None`` value is
         # distinguishable from a cache miss (the backend returns ``None``
         # only when the key is absent; a stored value is always bytes).
-        real_key = self.__get_real_key(cache_key)
-        with self._lock:
-            loaded = self.backend.load(real_key)
-            if loaded is not None:
-                return self._deserialize(loaded, cache_key)
+        real_key, key_lock = self._real_key_and_lock(cache_key)
+        with key_lock:
+            with self._lock:
+                loaded = self.backend.load(real_key)
+                if loaded is not None:
+                    return self._deserialize(loaded, cache_key)
 
             result = original_function(*args, **kwargs)
             self._put_or_warn(cache_key, result, expire_seconds)
@@ -221,9 +262,9 @@ class CacheStore(CacheStoreProtocol[T, S]):
             )
 
     def delete(self, key: T) -> None:
-        with self._lock:
-            real_key = self.__get_real_key(key)
+        real_key, key_lock = self._real_key_and_lock(key)
+        with key_lock, self._lock:
             self.backend.delete(real_key)
 
-    def delete_expired(self) -> int:
+    def delete_expired(self) -> DeletedExpiredCount:
         return self.backend.delete_expired()

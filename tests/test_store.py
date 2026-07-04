@@ -1,6 +1,7 @@
 import concurrent.futures
 import functools
 import tempfile
+import threading
 import time
 import warnings
 from collections.abc import Callable
@@ -26,7 +27,7 @@ if TYPE_CHECKING:
     typed_store = cast(CacheStore[str, int], None)
     proxied_increment = typed_store.proxy(lambda value: value + 1)
     assert_type(proxied_increment(1, cache_key="key"), int)
-    assert_type(typed_store.delete_expired(), int)
+    assert_type(typed_store.delete_expired(), int | None)
 
 
 def test_basis() -> None:
@@ -91,6 +92,21 @@ def test_delete_expired() -> None:
         assert store.delete_expired() == 0
 
 
+def test_delete_expired_propagates_unknown_count() -> None:
+    backend = MagicMock()
+    backend.delete_expired.return_value = None
+
+    store: CacheStore[str, int] = CacheStore(
+        namespace="testing",
+        key_serializer=StringSerializer(),
+        value_serializer=PickleSerializer(),
+        backend=backend,
+        default_expire_seconds=60,
+    )
+
+    assert store.delete_expired() is None
+
+
 def test_proxy_caches_none_return_value() -> None:
     """A function whose result is ``None`` must only be executed once
     per cached call, even though ``None`` is also the sentinel the
@@ -114,6 +130,24 @@ def test_proxy_caches_none_return_value() -> None:
         assert proxied(cache_key="none-key") is None
         assert proxied(cache_key="none-key") is None
         assert call_count == 1
+
+
+def test_proxy_expire_none_uses_store_default() -> None:
+    backend = MagicMock()
+    backend.load.return_value = None
+
+    store: CacheStore[str, int] = CacheStore(
+        namespace="testing",
+        key_serializer=StringSerializer(),
+        value_serializer=PickleSerializer(),
+        backend=backend,
+        default_expire_seconds=60,
+    )
+
+    proxied = store.proxy(lambda: 42)
+
+    assert proxied(cache_key="key", expire_seconds=None) == 42
+    assert backend.save.call_args.kwargs["expire_seconds"] == 60
 
 
 class _CountingFunction:
@@ -160,6 +194,60 @@ def test_proxy_no_double_execution_under_concurrency() -> None:
         results = _run_concurrent(proxied, 8)
         assert fn.call_count == 1
         assert results == [42] * 8
+
+
+def test_proxy_misses_for_different_keys_run_concurrently() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        store: CacheStore[str, int] = CacheStore(
+            namespace="testing",
+            key_serializer=StringSerializer(),
+            value_serializer=PickleSerializer(),
+            backend=FileSystemCacheBackend(tmpdir),
+            default_expire_seconds=60,
+        )
+        barrier = threading.Barrier(2)
+
+        def slow(value: int) -> int:
+            barrier.wait(timeout=1)
+            return value
+
+        proxied = store.proxy(slow)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            first = pool.submit(proxied, 1, cache_key="key-a")
+            second = pool.submit(proxied, 2, cache_key="key-b")
+
+            assert first.result(timeout=1) == 1
+            assert second.result(timeout=1) == 2
+
+
+def test_proxy_miss_does_not_block_other_key_get() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        store: CacheStore[str, int] = CacheStore(
+            namespace="testing",
+            key_serializer=StringSerializer(),
+            value_serializer=PickleSerializer(),
+            backend=FileSystemCacheBackend(tmpdir),
+            default_expire_seconds=60,
+        )
+        entered = threading.Event()
+        release = threading.Event()
+        store.put("ready-key", 7)
+
+        def slow() -> int:
+            entered.set()
+            release.wait(timeout=2)
+            return 42
+
+        proxied = store.proxy(slow)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            pending = pool.submit(proxied, cache_key="slow-key")
+            assert entered.wait(timeout=1)
+
+            immediate = pool.submit(store.get, "ready-key")
+            assert immediate.result(timeout=1) == 7
+
+            release.set()
+            assert pending.result(timeout=1) == 42
 
 
 def _returns_seven() -> int:

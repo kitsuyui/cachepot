@@ -37,7 +37,7 @@ dev = [
     "ruff",
     "setuptools-scm",
     "mypy",
-    "redis>=8,<9",
+    "cachepot[redis]",
 ]
 
 [tool.ruff]
@@ -107,6 +107,6 @@ test = "pytest"
 coverage-xml = "pytest --cov=cachepot --doctest-modules --cov-report=xml"
 format = "ruff format cachepot"
 check = [
-    { cmd = "ruff check cachepot tests" },
-    { cmd = "mypy cachepot tests" },
+    { cmd = "ruff check cachepot example tests" },
+    { cmd = "mypy cachepot example tests" },
 ]
