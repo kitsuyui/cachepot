@@ -70,11 +70,11 @@ redis = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "cachepot", extra = ["redis"] },
     { name = "mypy" },
     { name = "poethepoet" },
     { name = "pytest" },
     { name = "pytest-cov" },
-    { name = "redis" },
     { name = "ruff" },
     { name = "setuptools-scm" },
 ]
@@ -85,11 +85,11 @@ provides-extras = ["redis"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "cachepot", extras = ["redis"] },
     { name = "mypy" },
     { name = "poethepoet" },
     { name = "pytest" },
     { name = "pytest-cov" },
-    { name = "redis", specifier = ">=8,<9" },
     { name = "ruff" },
     { name = "setuptools-scm" },
 ]

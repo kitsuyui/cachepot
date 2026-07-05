@@ -5,6 +5,7 @@ import weakref
 from collections.abc import Callable
 from typing import Any, Protocol, TypeVar
 
+from cachepot._warnings import CachepotWarning
 from cachepot.backend import CacheBackendProtocol, DeletedExpiredCount
 from cachepot.expire import Expiry
 from cachepot.serializer import SerializerProtocol
@@ -256,7 +257,8 @@ class CacheStore(CacheStoreProtocol[T, S]):
                 f"Cache write failed: "
                 f"namespace={self.namespace!r}, "
                 f"key={cache_key!r}: {exc}",
-                stacklevel=4,
+                CachepotWarning,
+                stacklevel=5,
             )
 
     def delete(self, key: T) -> None:
