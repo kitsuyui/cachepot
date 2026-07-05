@@ -94,7 +94,7 @@ class FileSystemCacheBackend(CacheBackendProtocol):
 
     def __is_expired(self, path: pathlib.Path) -> bool:
         ts = self.__read_expire_timestamp(path)
-        return ts is not None and ts < time.time()
+        return ts is not None and ts <= time.time()
 
     def exists(self, key: bytes) -> bool:
         path = self.__get_real_path(key)
