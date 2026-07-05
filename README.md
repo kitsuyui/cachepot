@@ -18,9 +18,7 @@ $ pip install cachepot
 ## Usage
 
 ```python
->>> from cachepot.store import CacheStore
->>> from cachepot.backend.filesystem import FileSystemCacheBackend
->>> from cachepot.serializer.pickle import PickleSerializer
+>>> from cachepot import CacheStore, FileSystemCacheBackend, PickleSerializer
 >>> store = CacheStore(
 ...     namespace='testing',
 ...     key_serializer=PickleSerializer(),
@@ -35,6 +33,10 @@ $ pip install cachepot
 >>> store.delete_expired()
 0
 ```
+
+`delete_expired()` returns the number of entries removed when the backend can
+observe that count.  Redis handles TTL expiry server-side, so its backend
+returns `None` when the deleted-entry count is unknown.
 
 > **Security note**: `PickleSerializer` uses Python's `pickle` module, which can
 > execute arbitrary code during deserialization. Only use it when the cache

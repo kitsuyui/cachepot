@@ -4,9 +4,9 @@ import struct
 import tempfile
 import threading
 import time
-from datetime import datetime, tzinfo
+from datetime import datetime
 from types import MethodType
-from typing import BinaryIO, ClassVar, TextIO, cast
+from typing import BinaryIO, TextIO, cast
 
 import pytest
 
@@ -16,16 +16,6 @@ from cachepot.expire import to_timedelta
 
 _ORIGINAL_PATH_OPEN = pathlib.Path.open
 _ORIGINAL_PATH_UNLINK = pathlib.Path.unlink
-
-
-class _FrozenDatetime(datetime):
-    frozen_now: ClassVar["_FrozenDatetime"]
-
-    @classmethod
-    def now(cls, tz: tzinfo | None = None) -> "_FrozenDatetime":
-        if tz is not None:
-            return cls.frozen_now.replace(tzinfo=tz)
-        return cls.frozen_now
 
 
 def _cache_entry_path(cache_dir: pathlib.Path, key: bytes) -> pathlib.Path:
@@ -181,10 +171,11 @@ def test_expire() -> None:
 def test_fractional_expire_seconds_preserves_subsecond_timestamp(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    now = _FrozenDatetime(2026, 5, 25, 10, 30, 15, 250000)
+    frozen_time = 1748172615.25  # fixed epoch time with sub-second precision
     expire_seconds = 0.5
-    _FrozenDatetime.frozen_now = now
-    monkeypatch.setattr(filesystem_backend, "datetime", _FrozenDatetime)
+    expected_expire_at = frozen_time + expire_seconds
+
+    monkeypatch.setattr(filesystem_backend.time, "time", lambda: frozen_time)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         cache_dir = pathlib.Path(tmpdir)
@@ -192,7 +183,6 @@ def test_fractional_expire_seconds_preserves_subsecond_timestamp(
         key = b"fractional"
         cachestore.save(key, b"value", expire_seconds=expire_seconds)
         realpath = _cache_entry_path(cache_dir, key)
-        expected_expire_at = now.timestamp() + expire_seconds
 
         raw_header = realpath.read_bytes()[:_EXPIRY_HEADER_SIZE]
         (stored_expire_at,) = struct.unpack(
@@ -300,6 +290,44 @@ def test_exists() -> None:
         assert cachestore.exists(b"k")
         cachestore.delete(b"k")
         assert not cachestore.exists(b"k")
+
+
+def test_delete_expired_skips_non_cachepot_file() -> None:
+    """delete_expired() must not remove files that lack the cachepot header."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = pathlib.Path(tmpdir)
+        cachestore = FileSystemCacheBackend(cache_dir)
+        non_cache = cache_dir / "README"
+        non_cache.write_bytes(b"not a cachepot file")
+
+        assert cachestore.delete_expired() == 0
+        assert non_cache.exists()
+
+
+def test_delete_expired_skips_file_with_truncated_header() -> None:
+    """A file shorter than the 8-byte expiry header is not deleted."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = pathlib.Path(tmpdir)
+        cachestore = FileSystemCacheBackend(cache_dir)
+        short_file = cache_dir / "too-short"
+        short_file.write_bytes(b"\x00\x01\x02")
+
+        assert cachestore.delete_expired() == 0
+        assert short_file.exists()
+
+
+def test_load_returns_none_for_truncated_header_file() -> None:
+    """load() must return None for a file at the key-derived path whose header
+    is too short to unpack (e.g. a partially written file)."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = pathlib.Path(tmpdir)
+        cachestore = FileSystemCacheBackend(cache_dir)
+        key = b"collision-key"
+        key_path = _cache_entry_path(cache_dir, key)
+        key_path.write_bytes(b"\x00\x01")  # shorter than the 8-byte header
+
+        assert cachestore.load(key) is None
+        assert key_path.exists()
 
 
 def test_exists_does_not_delete_expired_entry() -> None:

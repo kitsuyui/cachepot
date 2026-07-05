@@ -1,7 +1,7 @@
 import pathlib
 import sqlite3
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 from types import TracebackType
 from typing import cast
 
@@ -9,6 +9,19 @@ from cachepot.backend import CacheBackendProtocol
 from cachepot.expire import Expiry, to_timedelta
 
 ConnectionLike = str | pathlib.Path | sqlite3.Connection
+
+_SCHEMA_VERSION = 1
+
+
+def _migrate(conn: sqlite3.Connection, from_version: int) -> None:
+    if from_version > _SCHEMA_VERSION:
+        raise RuntimeError(
+            f"cachepot database schema version {from_version} is newer than "
+            f"the current library version ({_SCHEMA_VERSION}). "
+            "Upgrade cachepot to open this database.",
+        )
+    conn.execute(f"PRAGMA user_version = {_SCHEMA_VERSION}")
+    conn.commit()
 
 
 def _init_schema(conn: sqlite3.Connection) -> None:
@@ -28,6 +41,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_cachepot
                   , expire_at
                   )""",
     )
+    version = conn.execute("PRAGMA user_version").fetchone()[0]
+    if version != _SCHEMA_VERSION:
+        _migrate(conn, version)
 
 
 def _open_and_init(path: str | pathlib.Path) -> sqlite3.Connection:
@@ -83,7 +99,9 @@ class SQLiteCacheBackend(CacheBackendProtocol):
     ) -> None:
         with self._lock:
             self._check_open()
-            expire_at = datetime.now() + to_timedelta(expire_seconds)
+            expire_at = (
+                datetime.now(timezone.utc) + to_timedelta(expire_seconds)
+            ).isoformat()
             self.conn.execute(
                 """\
 INSERT OR REPLACE INTO cachepot
@@ -96,7 +114,7 @@ INSERT OR REPLACE INTO cachepot
     def load(self, key: bytes) -> bytes | None:
         with self._lock:
             self._check_open()
-            current_datetime = datetime.now()
+            current_datetime = datetime.now(timezone.utc).isoformat()
             result = self.conn.execute(
                 """\
         SELECT value
@@ -112,7 +130,7 @@ INSERT OR REPLACE INTO cachepot
     def exists(self, key: bytes) -> bool:
         with self._lock:
             self._check_open()
-            current_datetime = datetime.now()
+            current_datetime = datetime.now(timezone.utc).isoformat()
             result = self.conn.execute(
                 """\
         SELECT 1
@@ -144,7 +162,7 @@ INSERT OR REPLACE INTO cachepot
         DELETE
           FROM cachepot
          WHERE expire_at <= ?""",
-                (datetime.now(),),
+                (datetime.now(timezone.utc).isoformat(),),
             )
             self.conn.commit()
         return cur.rowcount
