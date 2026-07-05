@@ -6,6 +6,7 @@ import struct
 import tempfile
 import threading
 import time
+from types import TracebackType
 from typing import BinaryIO, cast
 
 from cachepot.backend import CacheBackendProtocol
@@ -124,3 +125,17 @@ class FileSystemCacheBackend(CacheBackendProtocol):
                 path.unlink()
                 return True
         return False
+
+    def close(self) -> None:
+        pass
+
+    def __enter__(self) -> "FileSystemCacheBackend":
+        return self
+
+    def __exit__(
+        self,
+        _exc_type: type[BaseException] | None,
+        _exc: BaseException | None,
+        _traceback: TracebackType | None,
+    ) -> None:
+        self.close()

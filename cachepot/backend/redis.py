@@ -1,3 +1,4 @@
+from types import TracebackType
 from typing import cast
 
 from redis import Redis
@@ -49,3 +50,17 @@ class RedisCacheBackend(CacheBackendProtocol):
         unknown deleted-entry count, not as zero expired entries.
         """
         return None
+
+    def close(self) -> None:
+        self.redis.close()
+
+    def __enter__(self) -> "RedisCacheBackend":
+        return self
+
+    def __exit__(
+        self,
+        _exc_type: type[BaseException] | None,
+        _exc: BaseException | None,
+        _traceback: TracebackType | None,
+    ) -> None:
+        self.close()

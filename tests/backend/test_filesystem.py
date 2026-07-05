@@ -291,6 +291,14 @@ def test_exists() -> None:
         cachestore.delete(b"k")
         assert not cachestore.exists(b"k")
 
+def test_filesystem_backend_is_context_manager() -> None:
+    """FileSystemCacheBackend must work as a context manager."""
+    with tempfile.TemporaryDirectory() as tmpdir, FileSystemCacheBackend(
+        pathlib.Path(tmpdir),
+    ) as backend:
+        backend.save(b"k", b"v", expire_seconds=60)
+        assert backend.load(b"k") == b"v"
+
 
 def test_delete_expired_skips_non_cachepot_file() -> None:
     """delete_expired() must not remove files that lack the cachepot header."""
