@@ -33,14 +33,7 @@ CREATE TABLE IF NOT EXISTS cachepot
            , expire_at timestamp
            )""",
     )
-    conn.execute(
-        """\
-CREATE UNIQUE INDEX IF NOT EXISTS idx_cachepot
-                 ON cachepot
-                  ( key
-                  , expire_at
-                  )""",
-    )
+    conn.execute("DROP INDEX IF EXISTS idx_cachepot")
     version = conn.execute("PRAGMA user_version").fetchone()[0]
     if version != _SCHEMA_VERSION:
         _migrate(conn, version)
