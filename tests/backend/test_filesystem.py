@@ -353,17 +353,16 @@ def test_expiry_boundary_is_treated_as_expired(
     This matches the SQLite backend which uses ``expire_at > ?`` (strict
     greater-than), meaning the entry is not returned when now == expire_at.
     """
-    now = _FrozenDatetime(2026, 5, 25, 10, 30, 15, 0)
+    now = 1748169015.0
     expire_seconds = 60.0
-    _FrozenDatetime.frozen_now = now
-    monkeypatch.setattr(filesystem_backend, "datetime", _FrozenDatetime)
+    monkeypatch.setattr(filesystem_backend.time, "time", lambda: now)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         cache_dir = pathlib.Path(tmpdir)
         cachestore = FileSystemCacheBackend(cache_dir)
         key = b"boundary"
         cachestore.save(key, b"value", expire_seconds=expire_seconds)
-        expected_expire_at = now.timestamp() + expire_seconds
+        expected_expire_at = now + expire_seconds
 
         monkeypatch.setattr(
             filesystem_backend.time,
