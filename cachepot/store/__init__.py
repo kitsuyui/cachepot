@@ -4,7 +4,7 @@ import warnings
 import weakref
 from collections.abc import Callable
 from types import TracebackType
-from typing import Any, Protocol, TypeVar
+from typing import Any, Protocol, TypeVar, cast
 
 from cachepot._warnings import CachepotWarning
 from cachepot.backend import CacheBackendProtocol, DeletedExpiredCount
@@ -250,7 +250,7 @@ class CacheStore(CacheStoreProtocol[T, S]):
                     cache_key,
                 )
                 if found:
-                    return cached_result
+                    return cast(S, cached_result)
 
             result = original_function(*args, **kwargs)
             self._put_or_warn(cache_key, result, expire_seconds)
