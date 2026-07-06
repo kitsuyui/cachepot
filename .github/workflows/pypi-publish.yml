@@ -47,3 +47,5 @@ jobs:
       - name: Publish distribution to PyPI
         if: github.event_name == 'release' && !github.event.release.prerelease
         uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
+        with:
+          generate-attestations: true
