@@ -324,9 +324,26 @@ def test_delete_expired_skips_file_with_truncated_header() -> None:
         assert short_file.exists()
 
 
-def test_load_returns_none_for_truncated_header_file() -> None:
-    """load() must return None for a file at the key-derived path whose header
-    is too short to unpack (e.g. a partially written file)."""
+def test_delete_expired_raises_for_truncated_cache_entry_header() -> None:
+    """A truncated cache entry header should be surfaced as corruption."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = pathlib.Path(tmpdir)
+        cachestore = FileSystemCacheBackend(cache_dir)
+        key = b"collision-key"
+        key_path = _cache_entry_path(cache_dir, key)
+        key_path.write_bytes(b"\x00\x01")
+
+        with pytest.raises(
+            filesystem_backend.CorruptExpiryHeaderError,
+            match="truncated expiry header",
+        ):
+            cachestore.delete_expired()
+
+        assert key_path.exists()
+
+
+def test_load_raises_for_truncated_header_file() -> None:
+    """load() must surface a corrupted cache entry header as an error."""
     with tempfile.TemporaryDirectory() as tmpdir:
         cache_dir = pathlib.Path(tmpdir)
         cachestore = FileSystemCacheBackend(cache_dir)
@@ -334,7 +351,29 @@ def test_load_returns_none_for_truncated_header_file() -> None:
         key_path = _cache_entry_path(cache_dir, key)
         key_path.write_bytes(b"\x00\x01")  # shorter than the 8-byte header
 
-        assert cachestore.load(key) is None
+        with pytest.raises(
+            filesystem_backend.CorruptExpiryHeaderError,
+            match="truncated expiry header",
+        ):
+            cachestore.load(key)
+        assert key_path.exists()
+
+
+def test_exists_raises_for_truncated_header_file() -> None:
+    """exists() must also surface a corrupted cache entry header."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = pathlib.Path(tmpdir)
+        cachestore = FileSystemCacheBackend(cache_dir)
+        key = b"collision-key"
+        key_path = _cache_entry_path(cache_dir, key)
+        key_path.write_bytes(b"\x00\x01")
+
+        with pytest.raises(
+            filesystem_backend.CorruptExpiryHeaderError,
+            match="truncated expiry header",
+        ):
+            cachestore.exists(key)
+
         assert key_path.exists()
 
 
