@@ -4,7 +4,7 @@ import sqlite3
 import tempfile
 import time
 import unittest.mock
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -17,8 +17,11 @@ _CONTROLLED_LOCK_TIME: list[datetime] = [datetime(1970, 1, 1)]
 
 class _ControlledDateTime:
     @classmethod
-    def now(cls):
-        return _CONTROLLED_CURRENT_TIME[0]
+    def now(cls, tz: timezone | None = None) -> datetime:
+        dt = _CONTROLLED_CURRENT_TIME[0]
+        if tz is not None:
+            return dt.replace(tzinfo=tz)
+        return dt
 
 
 class _AdvancingLock:
@@ -28,6 +31,55 @@ class _AdvancingLock:
 
     def __exit__(self, _exc_type, _exc, _traceback):
         return None
+
+
+def test_schema_version_is_set_on_new_database() -> None:
+    """A freshly initialised database must have user_version = 1."""
+    with tempfile.NamedTemporaryFile(suffix=".db") as f:
+        conn = sqlite3.connect(f.name)
+        SQLiteCacheBackend(conn)
+        version = conn.execute("PRAGMA user_version").fetchone()[0]
+        assert version == 1
+        conn.close()
+
+
+def test_schema_version_upgrades_unversioned_database() -> None:
+    """An existing database with user_version = 0 is accepted and upgraded
+    to version 1 without requiring a data migration."""
+    with tempfile.NamedTemporaryFile(suffix=".db") as f:
+        # Simulate a pre-versioning database: create the schema manually,
+        # leave user_version at the SQLite default of 0.
+        conn = sqlite3.connect(f.name)
+        conn.execute(
+            "CREATE TABLE cachepot"
+            " (key BLOB PRIMARY KEY, value BLOB, expire_at timestamp)",
+        )
+        conn.commit()
+        conn.close()
+
+        # Opening with SQLiteCacheBackend must succeed and migrate
+        # user_version to 1.
+        with SQLiteCacheBackend(f.name) as backend:
+            backend.save(b"k", b"v", expire_seconds=60)
+            assert backend.load(b"k") == b"v"
+
+        conn2 = sqlite3.connect(f.name)
+        version = conn2.execute("PRAGMA user_version").fetchone()[0]
+        assert version == 1
+        conn2.close()
+
+
+def test_schema_version_raises_on_future_schema() -> None:
+    """Opening a database whose user_version exceeds the current library
+    version must raise RuntimeError rather than silently misinterpreting it."""
+    with tempfile.NamedTemporaryFile(suffix=".db") as f:
+        conn = sqlite3.connect(f.name)
+        conn.execute("PRAGMA user_version = 999")
+        conn.commit()
+        conn.close()
+
+        with pytest.raises(RuntimeError, match="schema version 999"):
+            SQLiteCacheBackend(f.name)
 
 
 def test_sqlite_connection() -> None:
@@ -67,7 +119,7 @@ def test_sqlite_close_closes_connection() -> None:
         cachestore.save(b"1", b"2", expire_seconds=1)
         cachestore.close()
 
-        with pytest.raises(sqlite3.ProgrammingError):
+        with pytest.raises(RuntimeError, match="already closed"):
             cachestore.load(b"1")
 
 
@@ -77,8 +129,26 @@ def test_sqlite_context_manager_closes_connection() -> None:
             cachestore.save(b"1", b"2", expire_seconds=1)
             assert cachestore.load(b"1") == b"2"
 
-        with pytest.raises(sqlite3.ProgrammingError):
+        with pytest.raises(RuntimeError, match="already closed"):
             cachestore.load(b"1")
+
+
+def test_use_after_close_raises_runtime_error() -> None:
+    with tempfile.NamedTemporaryFile() as f:
+        cachestore = SQLiteCacheBackend(f.name)
+        cachestore.save(b"k", b"v", expire_seconds=60)
+        cachestore.close()
+
+        with pytest.raises(RuntimeError, match="already closed"):
+            cachestore.save(b"k2", b"v2", expire_seconds=60)
+        with pytest.raises(RuntimeError, match="already closed"):
+            cachestore.load(b"k")
+        with pytest.raises(RuntimeError, match="already closed"):
+            cachestore.exists(b"k")
+        with pytest.raises(RuntimeError, match="already closed"):
+            cachestore.delete(b"k")
+        with pytest.raises(RuntimeError, match="already closed"):
+            cachestore.delete_expired()
 
 
 def test_expire() -> None:
