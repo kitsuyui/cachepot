@@ -4,7 +4,7 @@ import warnings
 import weakref
 from collections.abc import Callable
 from types import TracebackType
-from typing import Any, Protocol, TypeVar
+from typing import Any, Protocol, TypeVar, cast
 
 from cachepot._warnings import CachepotWarning
 from cachepot.backend import CacheBackendProtocol, DeletedExpiredCount
@@ -129,10 +129,10 @@ class CacheStore(CacheStoreProtocol[T, S]):
     def get(self, key: T) -> S | None:
         real_key, key_lock = self._real_key_and_lock(key)
         with key_lock, self._lock:
-            loaded = self.backend.load(real_key)
-            if loaded is None:
-                return None
-            return self._deserialize(loaded, key)
+            found, value = self.__load_if_present_locked(real_key, key)
+            if found:
+                return value
+            return None
 
     def has(self, key: T) -> bool:
         real_key, key_lock = self._real_key_and_lock(key)
@@ -242,19 +242,29 @@ class CacheStore(CacheStoreProtocol[T, S]):
         args: tuple[Any, ...],
         kwargs: dict[str, Any],
     ) -> S:
-        # Inspect the backend directly so a stored ``None`` value is
-        # distinguishable from a cache miss (the backend returns ``None``
-        # only when the key is absent; a stored value is always bytes).
         real_key, key_lock = self._real_key_and_lock(cache_key)
         with key_lock:
             with self._lock:
-                loaded = self.backend.load(real_key)
-                if loaded is not None:
-                    return self._deserialize(loaded, cache_key)
+                found, cached_result = self.__load_if_present_locked(
+                    real_key,
+                    cache_key,
+                )
+                if found:
+                    return cast(S, cached_result)
 
             result = original_function(*args, **kwargs)
             self._put_or_warn(cache_key, result, expire_seconds)
             return result
+
+    def __load_if_present_locked(
+        self,
+        real_key: bytes,
+        key: T,
+    ) -> tuple[bool, S | None]:
+        loaded = self.backend.load(real_key)
+        if loaded is None:
+            return False, None
+        return True, self._deserialize(loaded, key)
 
     def _put_or_warn(
         self,
