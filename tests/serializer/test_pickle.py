@@ -4,6 +4,9 @@ import subprocess
 import sys
 from dataclasses import dataclass
 
+import pytest
+
+from cachepot._warnings import CachepotWarning
 from cachepot.serializer.pickle import PICKLE_PROTOCOL, PickleSerializer
 
 
@@ -12,8 +15,13 @@ class A:
     x: int
 
 
+def _new_pickle_serializer() -> PickleSerializer:
+    with pytest.warns(CachepotWarning):
+        return PickleSerializer()
+
+
 def test_pickle_serializer() -> None:
-    serializer = PickleSerializer()
+    serializer = _new_pickle_serializer()
 
     patterns = [
         1,
@@ -31,7 +39,7 @@ def test_pickle_serializer() -> None:
 
 
 def test_pickle_serializer_uses_stable_protocol() -> None:
-    serializer = PickleSerializer()
+    serializer = _new_pickle_serializer()
 
     assert serializer.serialize("key") == pickle.dumps(
         "key",
@@ -44,13 +52,13 @@ def test_pickle_serializer_stabilizes_hash_randomized_sets() -> None:
     second = _serialize_frozenset_with_hash_seed("2")
 
     assert first == second
-    assert PickleSerializer().deserialize(first) == frozenset(
+    assert _new_pickle_serializer().deserialize(first) == frozenset(
         {"alpha", "bravo", "charlie"},
     )
 
 
 def test_pickle_serializer_stabilizes_dict_insertion_order() -> None:
-    serializer = PickleSerializer()
+    serializer = _new_pickle_serializer()
     d1 = {"a": 1, "b": 2}
     d2 = {"b": 2, "a": 1}
     assert d1 == d2

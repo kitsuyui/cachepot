@@ -10,7 +10,6 @@ from ._warnings import CachepotWarning
 from .backend.filesystem import FileSystemCacheBackend
 from .backend.sqlite import SQLiteCacheBackend
 from .serializer.json import JSONSerializer
-from .serializer.pickle import PickleSerializer
 from .serializer.str import StringSerializer
 from .store import CacheStore
 
@@ -19,7 +18,6 @@ __all__ = [
     "CachepotWarning",
     "FileSystemCacheBackend",
     "JSONSerializer",
-    "PickleSerializer",
     "SQLiteCacheBackend",
     "StringSerializer",
     "__version__",

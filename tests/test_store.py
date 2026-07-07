@@ -15,9 +15,10 @@ import cachepot
 from cachepot import (
     CacheStore,
     FileSystemCacheBackend,
-    PickleSerializer,
     StringSerializer,
 )
+from cachepot._warnings import CachepotWarning
+from cachepot.serializer.pickle import PickleSerializer
 from cachepot.store import CacheProxyProtocol
 
 if TYPE_CHECKING:
@@ -30,12 +31,17 @@ if TYPE_CHECKING:
     assert_type(typed_store.delete_expired(), int | None)
 
 
+def _new_pickle_serializer() -> PickleSerializer:
+    with pytest.warns(CachepotWarning):
+        return PickleSerializer()
+
+
 def test_basis() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         cachestore = CacheStore(
             namespace="testing",
             key_serializer=StringSerializer(),
-            value_serializer=PickleSerializer(),
+            value_serializer=_new_pickle_serializer(),
             backend=FileSystemCacheBackend(tmpdir),
             default_expire_seconds=1,
         )
@@ -60,7 +66,7 @@ def test_has_distinguishes_miss_from_stored_none() -> None:
         store: CacheStore[str, None] = CacheStore(
             namespace="testing",
             key_serializer=StringSerializer(),
-            value_serializer=PickleSerializer(),
+            value_serializer=_new_pickle_serializer(),
             backend=FileSystemCacheBackend(tmpdir),
             default_expire_seconds=60,
         )
@@ -77,7 +83,7 @@ def test_delete_expired() -> None:
         store = CacheStore(
             namespace="testing",
             key_serializer=StringSerializer(),
-            value_serializer=PickleSerializer(),
+            value_serializer=_new_pickle_serializer(),
             backend=FileSystemCacheBackend(tmpdir),
             default_expire_seconds=1,
         )
@@ -99,7 +105,7 @@ def test_delete_expired_propagates_unknown_count() -> None:
     store: CacheStore[str, int] = CacheStore(
         namespace="testing",
         key_serializer=StringSerializer(),
-        value_serializer=PickleSerializer(),
+        value_serializer=_new_pickle_serializer(),
         backend=backend,
         default_expire_seconds=60,
     )
@@ -115,7 +121,7 @@ def test_proxy_caches_none_return_value() -> None:
         cachestore = CacheStore(
             namespace="testing",
             key_serializer=StringSerializer(),
-            value_serializer=PickleSerializer(),
+            value_serializer=_new_pickle_serializer(),
             backend=FileSystemCacheBackend(tmpdir),
             default_expire_seconds=60,
         )
@@ -139,7 +145,7 @@ def test_proxy_expire_none_uses_store_default() -> None:
     store: CacheStore[str, int] = CacheStore(
         namespace="testing",
         key_serializer=StringSerializer(),
-        value_serializer=PickleSerializer(),
+        value_serializer=_new_pickle_serializer(),
         backend=backend,
         default_expire_seconds=60,
     )
@@ -182,7 +188,7 @@ def test_proxy_no_double_execution_under_concurrency() -> None:
         store = CacheStore(
             namespace="testing",
             key_serializer=StringSerializer(),
-            value_serializer=PickleSerializer(),
+            value_serializer=_new_pickle_serializer(),
             backend=FileSystemCacheBackend(tmpdir),
             default_expire_seconds=60,
         )
@@ -201,7 +207,7 @@ def test_proxy_misses_for_different_keys_run_concurrently() -> None:
         store: CacheStore[str, int] = CacheStore(
             namespace="testing",
             key_serializer=StringSerializer(),
-            value_serializer=PickleSerializer(),
+            value_serializer=_new_pickle_serializer(),
             backend=FileSystemCacheBackend(tmpdir),
             default_expire_seconds=60,
         )
@@ -220,12 +226,17 @@ def test_proxy_misses_for_different_keys_run_concurrently() -> None:
             assert second.result(timeout=1) == 2
 
 
+def test_pickle_serializer_is_not_top_level_export() -> None:
+    assert "PickleSerializer" not in cachepot.__all__
+    assert not hasattr(cachepot, "PickleSerializer")
+
+
 def test_proxy_miss_does_not_block_other_key_get() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         store: CacheStore[str, int] = CacheStore(
             namespace="testing",
             key_serializer=StringSerializer(),
-            value_serializer=PickleSerializer(),
+            value_serializer=_new_pickle_serializer(),
             backend=FileSystemCacheBackend(tmpdir),
             default_expire_seconds=60,
         )
@@ -264,7 +275,7 @@ def test_proxy_nested_same_store_does_not_deadlock() -> None:
         store = CacheStore(
             namespace="testing",
             key_serializer=StringSerializer(),
-            value_serializer=PickleSerializer(),
+            value_serializer=_new_pickle_serializer(),
             backend=FileSystemCacheBackend(tmpdir),
             default_expire_seconds=60,
         )
@@ -283,14 +294,14 @@ def test_namespace_key_no_collision() -> None:
         store_a = CacheStore(
             namespace="a",
             key_serializer=StringSerializer(),
-            value_serializer=PickleSerializer(),
+            value_serializer=_new_pickle_serializer(),
             backend=FileSystemCacheBackend(tmpdir),
             default_expire_seconds=60,
         )
         store_ab = CacheStore(
             namespace="a:b",
             key_serializer=StringSerializer(),
-            value_serializer=PickleSerializer(),
+            value_serializer=_new_pickle_serializer(),
             backend=FileSystemCacheBackend(tmpdir),
             default_expire_seconds=60,
         )
@@ -305,7 +316,7 @@ def test_proxy_requires_cache_key_at_runtime() -> None:
         cachestore = CacheStore(
             namespace="testing",
             key_serializer=StringSerializer(),
-            value_serializer=PickleSerializer(),
+            value_serializer=_new_pickle_serializer(),
             backend=FileSystemCacheBackend(tmpdir),
             default_expire_seconds=60,
         )
@@ -328,7 +339,7 @@ def test_proxy_returns_result_when_backend_write_fails() -> None:
     store: CacheStore[str, int] = CacheStore(
         namespace="testing",
         key_serializer=StringSerializer(),
-        value_serializer=PickleSerializer(),
+        value_serializer=_new_pickle_serializer(),
         backend=backend,
         default_expire_seconds=60,
     )
@@ -364,7 +375,7 @@ def _make_store(tmpdir: str) -> CacheStore[str, str]:
     return CacheStore(
         namespace="testing",
         key_serializer=StringSerializer(),
-        value_serializer=PickleSerializer(),
+        value_serializer=_new_pickle_serializer(),
         backend=FileSystemCacheBackend(tmpdir),
         default_expire_seconds=60,
     )
@@ -408,7 +419,7 @@ def test_direct_put_get_is_thread_safe() -> None:
         store: CacheStore[str, int] = CacheStore(
             namespace="testing",
             key_serializer=StringSerializer(),
-            value_serializer=PickleSerializer(),
+            value_serializer=_new_pickle_serializer(),
             backend=FileSystemCacheBackend(tmpdir),
             default_expire_seconds=60,
         )
@@ -430,7 +441,7 @@ def test_cachestore_context_manager_calls_backend_close() -> None:
     store: CacheStore[str, int] = CacheStore(
         namespace="testing",
         key_serializer=StringSerializer(),
-        value_serializer=PickleSerializer(),
+        value_serializer=_new_pickle_serializer(),
         backend=backend,
         default_expire_seconds=60,
     )
@@ -453,7 +464,7 @@ def test_get_raises_with_key_context_on_deserialize_failure() -> None:
         store = CacheStore(
             namespace="my-ns",
             key_serializer=StringSerializer(),
-            value_serializer=PickleSerializer(),
+            value_serializer=_new_pickle_serializer(),
             backend=FileSystemCacheBackend(tmpdir),
             default_expire_seconds=60,
         )
