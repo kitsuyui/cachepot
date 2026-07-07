@@ -2,6 +2,7 @@ import contextlib
 import hashlib
 import os
 import pathlib
+import re
 import struct
 import tempfile
 import threading
@@ -16,6 +17,11 @@ PathLike = pathlib.Path | str
 
 _EXPIRY_HEADER_FORMAT = ">d"
 _EXPIRY_HEADER_SIZE = struct.calcsize(_EXPIRY_HEADER_FORMAT)
+_CACHE_ENTRY_NAME_RE = re.compile(r"^[0-9a-f]{64}$")
+
+
+class CorruptExpiryHeaderError(ValueError):
+    """Raised when a cache entry has an unreadable expiry header."""
 
 
 class FileSystemCacheBackend(CacheBackendProtocol):
@@ -80,26 +86,35 @@ class FileSystemCacheBackend(CacheBackendProtocol):
         return None
 
     def __is_loadable(self, path: pathlib.Path) -> bool:
-        ts = self.__read_expire_timestamp(path)
-        return ts is not None and not self.__delete_if_expired(path)
+        self.__read_expire_timestamp(path)
+        return not self.__delete_if_expired(path)
 
     def __can_load(self, path: pathlib.Path) -> bool:
         return path.is_file() and self.__is_loadable(path)
 
-    def __read_expire_timestamp(self, path: pathlib.Path) -> float | None:
-        with contextlib.suppress(OSError, struct.error), path.open("rb") as f:
+    def __read_expire_timestamp(self, path: pathlib.Path) -> float:
+        with path.open("rb") as f:
             raw = f.read(_EXPIRY_HEADER_SIZE)
-            return struct.unpack(_EXPIRY_HEADER_FORMAT, raw)[0]
-        return None
+        if len(raw) < _EXPIRY_HEADER_SIZE:
+            raise CorruptExpiryHeaderError(
+                f"cache entry {path.name} has a truncated expiry header",
+            )
+        return struct.unpack(_EXPIRY_HEADER_FORMAT, raw)[0]
 
     def __is_expired(self, path: pathlib.Path) -> bool:
         ts = self.__read_expire_timestamp(path)
-        return ts is not None and ts <= time.time()
+        return ts <= time.time()
+
+    def __is_cache_entry_path(self, path: pathlib.Path) -> bool:
+        return _CACHE_ENTRY_NAME_RE.fullmatch(path.name) is not None
 
     def exists(self, key: bytes) -> bool:
         path = self.__get_real_path(key)
         with self.__lock:
-            return path.is_file() and not self.__is_expired(path)
+            try:
+                return path.is_file() and not self.__is_expired(path)
+            except FileNotFoundError:
+                return False
 
     def delete(self, key: bytes) -> None:
         with self.__lock, contextlib.suppress(FileNotFoundError):
@@ -110,7 +125,8 @@ class FileSystemCacheBackend(CacheBackendProtocol):
             return sum(
                 1
                 for path in self.path.iterdir()
-                if self.__delete_file_if_expired(path)
+                if self.__is_cache_entry_path(path)
+                and self.__delete_file_if_expired(path)
             )
         return 0
 
