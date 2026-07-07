@@ -4,7 +4,7 @@ import struct
 import tempfile
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from types import MethodType
 from typing import BinaryIO, TextIO, cast
 
@@ -242,7 +242,9 @@ def test_save_sets_expiration_header_on_overwrite() -> None:
         cachestore.save(b"k", b"new", expire_seconds=3600)
 
         (entry,) = [p for p in cache_dir.iterdir() if p.is_file()]
-        future_threshold = (datetime.now() + to_timedelta(60)).timestamp()
+        future_threshold = (
+            datetime.now(timezone.utc) + to_timedelta(60)
+        ).timestamp()
         raw_header = entry.read_bytes()[:_EXPIRY_HEADER_SIZE]
         (expire_ts,) = struct.unpack(_EXPIRY_HEADER_FORMAT, raw_header)
         assert expire_ts >= future_threshold
