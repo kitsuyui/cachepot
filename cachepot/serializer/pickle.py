@@ -1,9 +1,11 @@
 import io
 import pickle
 import sys
+import warnings
 from itertools import islice
 from typing import Any
 
+from cachepot._warnings import CachepotWarning
 from cachepot.serializer import SerializerProtocol
 
 PICKLE_PROTOCOL = 4
@@ -99,6 +101,14 @@ class PickleSerializer(SerializerProtocol[Any]):
         :class:`cachepot.serializer.msgpack.MsgpackSerializer` for
         untrusted environments.
     """
+
+    def __init__(self) -> None:
+        warnings.warn(
+            "PickleSerializer can execute arbitrary code during "
+            "deserialization. Use it only with trusted cache data.",
+            CachepotWarning,
+            stacklevel=2,
+        )
 
     def serialize(self, data: Any) -> bytes:
         return _pickle_dumps(data)
