@@ -1,4 +1,5 @@
 import inspect
+import logging
 import threading
 import warnings
 import weakref
@@ -14,6 +15,8 @@ from cachepot.serializer import SerializerProtocol
 T = TypeVar("T", contravariant=True)
 S = TypeVar("S")
 S_co = TypeVar("S_co", covariant=True)
+
+logger = logging.getLogger(__name__)
 
 
 class CacheProxyProtocol(Protocol[T, S_co]):
@@ -81,6 +84,7 @@ class CacheStore(CacheStoreProtocol[T, S]):
     value_serializer: SerializerProtocol[S]
     backend: CacheBackendProtocol
     default_expire_seconds: Expiry
+    cache_write_failures: int
 
     def __init__(
         self,
@@ -95,6 +99,7 @@ class CacheStore(CacheStoreProtocol[T, S]):
         self.value_serializer = value_serializer
         self.backend = backend
         self.default_expire_seconds = default_expire_seconds
+        self.cache_write_failures = 0
         self._lock = threading.RLock()
         self._key_locks: weakref.WeakValueDictionary[bytes, Any] = (
             weakref.WeakValueDictionary()
@@ -213,10 +218,14 @@ class CacheStore(CacheStoreProtocol[T, S]):
         **Cache write failures are demoted to warnings.**  When the proxy
         stores a computed result and the backend raises any exception,
         the exception is caught and emitted via :func:`warnings.warn` instead
-        of propagating to the caller.  The original function's return value
-        is still returned normally.  This is intentional graceful degradation:
-        the proxy remains functional even when the backend is unavailable,
-        at the cost of recomputing the result on every call.
+        of propagating to the caller.  The failure is also logged with the
+        ``cachepot.store`` logger and increments the store's
+        ``cache_write_failures`` counter so applications can monitor
+        degradation without relying on the process-global warnings filter.
+        The original function's return value is still returned normally.  This
+        is intentional graceful degradation: the proxy remains functional even
+        when the backend is unavailable, at the cost of recomputing the result
+        on every call.
 
         This differs from calling :meth:`put` directly, where backend
         exceptions propagate unchanged to the caller.  If your application
@@ -275,6 +284,14 @@ class CacheStore(CacheStoreProtocol[T, S]):
         try:
             self.put(cache_key, result, expire_seconds=expire_seconds)
         except Exception as exc:
+            with self._lock:
+                self.cache_write_failures += 1
+            logger.warning(
+                "Cache write failed: namespace=%r, key=%r",
+                self.namespace,
+                cache_key,
+                exc_info=exc,
+            )
             warnings.warn(
                 f"Cache write failed: "
                 f"namespace={self.namespace!r}, "

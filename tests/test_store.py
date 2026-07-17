@@ -1,5 +1,6 @@
 import concurrent.futures
 import functools
+import logging
 import tempfile
 import threading
 import time
@@ -358,6 +359,7 @@ def test_proxy_returns_result_when_backend_write_fails() -> None:
 
     assert result == 99
     assert call_count == 1
+    assert store.cache_write_failures == 1
     cache_write_warnings = [
         warning
         for warning in caught
@@ -369,6 +371,30 @@ def test_proxy_returns_result_when_backend_write_fails() -> None:
         cache_write_warnings[0].category,
         cachepot.CachepotWarning,
     )
+
+
+def test_proxy_logs_write_failures(caplog: pytest.LogCaptureFixture) -> None:
+    backend = MagicMock()
+    backend.load.return_value = None
+    backend.save.side_effect = OSError("No space left on device")
+
+    store: CacheStore[str, int] = CacheStore(
+        namespace="testing",
+        key_serializer=StringSerializer(),
+        value_serializer=_new_pickle_serializer(),
+        backend=backend,
+        default_expire_seconds=60,
+    )
+
+    with (
+        caplog.at_level(logging.WARNING, logger="cachepot.store"),
+        pytest.warns(CachepotWarning, match="Cache write failed"),
+    ):
+        store.proxy(lambda: 99)(cache_key="k")
+
+    assert store.cache_write_failures == 1
+    assert "Cache write failed" in caplog.text
+    assert "namespace='testing'" in caplog.text
 
 
 def _make_store(tmpdir: str) -> CacheStore[str, str]:
