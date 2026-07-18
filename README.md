@@ -72,6 +72,12 @@ Backends save/load bytes.
 So serializers and backends are independent.
 CacheStore is the facade of them.
 
+Backends now enforce a finite per-entry size contract by default:
+`max_entry_bytes=8 * 1024 * 1024` (8 MiB). Entries larger than that are
+rejected on `save()`, and `load()` checks the backend-side size before
+materializing the payload into process memory. You can override the limit
+per backend instance when your application has a different budget.
+
 - Python3 typing supports
 - namespaces
 - Proxy method

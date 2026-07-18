@@ -10,7 +10,11 @@ import time
 from types import TracebackType
 from typing import BinaryIO, cast
 
-from cachepot.backend import CacheBackendProtocol
+from cachepot.backend import (
+    DEFAULT_MAX_ENTRY_BYTES,
+    CacheBackendProtocol,
+    CacheEntryTooLargeError,
+)
 from cachepot.expire import Expiry, to_timedelta
 
 PathLike = pathlib.Path | str
@@ -27,11 +31,17 @@ class CorruptExpiryHeaderError(ValueError):
 class FileSystemCacheBackend(CacheBackendProtocol):
     path: pathlib.Path
 
-    def __init__(self, path: PathLike) -> None:
+    def __init__(
+        self,
+        path: PathLike,
+        *,
+        max_entry_bytes: int = DEFAULT_MAX_ENTRY_BYTES,
+    ) -> None:
         if isinstance(path, str):
             self.path = pathlib.Path(path)
         else:
             self.path = path
+        self.max_entry_bytes = max_entry_bytes
         self.__lock = threading.RLock()
 
     def __get_real_path(self, key: bytes) -> pathlib.Path:
@@ -44,6 +54,7 @@ class FileSystemCacheBackend(CacheBackendProtocol):
         *,
         expire_seconds: Expiry,
     ) -> None:
+        self.__ensure_entry_fits(len(value), operation="save")
         with self.__lock:
             expire_timestamp = (
                 time.time() + to_timedelta(expire_seconds).total_seconds()
@@ -80,10 +91,23 @@ class FileSystemCacheBackend(CacheBackendProtocol):
         with contextlib.suppress(FileNotFoundError):
             if not self.__can_load(path):
                 return None
+            self.__ensure_file_fits(path)
             with cast(BinaryIO, path.open("rb")) as f:
                 f.seek(_EXPIRY_HEADER_SIZE)
                 return f.read()
         return None
+
+    def __ensure_entry_fits(self, size: int, *, operation: str) -> None:
+        if size > self.max_entry_bytes:
+            raise CacheEntryTooLargeError(
+                operation=operation,
+                actual_bytes=size,
+                max_entry_bytes=self.max_entry_bytes,
+            )
+
+    def __ensure_file_fits(self, path: pathlib.Path) -> None:
+        payload_size = path.stat().st_size - _EXPIRY_HEADER_SIZE
+        self.__ensure_entry_fits(payload_size, operation="load")
 
     def __is_loadable(self, path: pathlib.Path) -> bool:
         self.__read_expire_timestamp(path)

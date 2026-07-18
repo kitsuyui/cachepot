@@ -4,6 +4,27 @@ from typing import Protocol
 from cachepot.expire import Expiry
 
 DeletedExpiredCount = int | None
+DEFAULT_MAX_ENTRY_BYTES = 8 * 1024 * 1024
+
+
+class CacheEntryTooLargeError(ValueError):
+    """Raised when a cache entry exceeds the backend size contract."""
+
+    def __init__(
+        self,
+        *,
+        operation: str,
+        actual_bytes: int,
+        max_entry_bytes: int,
+    ) -> None:
+        self.operation = operation
+        self.actual_bytes = actual_bytes
+        self.max_entry_bytes = max_entry_bytes
+        super().__init__(
+            f"cache entry too large for {operation}: "
+            f"{actual_bytes} bytes exceeds max_entry_bytes="
+            f"{max_entry_bytes}",
+        )
 
 
 class CacheBackendProtocol(Protocol):
