@@ -66,7 +66,14 @@ class CacheStoreProtocol(Protocol[T, S]):
         """
         ...
 
-    def close(self) -> None: ...
+    def close(self) -> None:
+        """Close the store.
+
+        After ``close()`` returns, all cache operations on the store must
+        raise ``RuntimeError`` regardless of backend implementation details.
+        Calling ``close()`` more than once is allowed.
+        """
+        ...
 
     def __enter__(self) -> "CacheStoreProtocol[T, S]": ...
 
@@ -84,6 +91,7 @@ class CacheStore(CacheStoreProtocol[T, S]):
     value_serializer: SerializerProtocol[S]
     backend: CacheBackendProtocol
     default_expire_seconds: Expiry
+    _closed: bool
     cache_write_failures: int
 
     def __init__(
@@ -104,6 +112,11 @@ class CacheStore(CacheStoreProtocol[T, S]):
         self._key_locks: weakref.WeakValueDictionary[bytes, Any] = (
             weakref.WeakValueDictionary()
         )
+        self._closed = False
+
+    def _ensure_open(self) -> None:
+        if self._closed:
+            raise RuntimeError("CacheStore is already closed")
 
     def __get_real_key(self, key: T) -> bytes:
         serialized_key = self.key_serializer.serialize(key)
@@ -134,6 +147,7 @@ class CacheStore(CacheStoreProtocol[T, S]):
     def get(self, key: T) -> S | None:
         real_key, key_lock = self._real_key_and_lock(key)
         with key_lock, self._lock:
+            self._ensure_open()
             found, value = self.__load_if_present_locked(real_key, key)
             if found:
                 return value
@@ -142,6 +156,7 @@ class CacheStore(CacheStoreProtocol[T, S]):
     def has(self, key: T) -> bool:
         real_key, key_lock = self._real_key_and_lock(key)
         with key_lock, self._lock:
+            self._ensure_open()
             return self.backend.exists(real_key)
 
     def put(
@@ -153,6 +168,7 @@ class CacheStore(CacheStoreProtocol[T, S]):
     ) -> None:
         real_key, key_lock = self._real_key_and_lock(key)
         with key_lock, self._lock:
+            self._ensure_open()
             if expire_seconds is None:
                 expire_seconds = self.default_expire_seconds
             serialized_value = self.value_serializer.serialize(value)
@@ -232,6 +248,8 @@ class CacheStore(CacheStoreProtocol[T, S]):
         must surface cache write errors as exceptions, call :meth:`put`
         explicitly rather than using a proxy.
         """
+        with self._lock:
+            self._ensure_open()
         conflicts = self._proxy_conflicts(original_function)
         if conflicts:
             names = ", ".join(f"'{n}'" for n in sorted(conflicts))
@@ -254,6 +272,7 @@ class CacheStore(CacheStoreProtocol[T, S]):
         real_key, key_lock = self._real_key_and_lock(cache_key)
         with key_lock:
             with self._lock:
+                self._ensure_open()
                 found, cached_result = self.__load_if_present_locked(
                     real_key,
                     cache_key,
@@ -303,13 +322,20 @@ class CacheStore(CacheStoreProtocol[T, S]):
     def delete(self, key: T) -> None:
         real_key, key_lock = self._real_key_and_lock(key)
         with key_lock, self._lock:
+            self._ensure_open()
             self.backend.delete(real_key)
 
     def delete_expired(self) -> DeletedExpiredCount:
-        return self.backend.delete_expired()
+        with self._lock:
+            self._ensure_open()
+            return self.backend.delete_expired()
 
     def close(self) -> None:
-        self.backend.close()
+        with self._lock:
+            if self._closed:
+                return
+            self.backend.close()
+            self._closed = True
 
     def __enter__(self) -> "CacheStore[T, S]":
         return self

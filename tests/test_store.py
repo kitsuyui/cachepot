@@ -484,6 +484,53 @@ def test_cachestore_context_manager_returns_self() -> None:
             assert s is store
 
 
+@pytest.mark.parametrize(
+    ("operation", "match"),
+    [
+        (lambda store: store.get("key"), "already closed"),
+        (lambda store: store.has("key"), "already closed"),
+        (lambda store: store.put("key", "value"), "already closed"),
+        (lambda store: store.delete("key"), "already closed"),
+        (lambda store: store.delete_expired(), "already closed"),
+        (
+            lambda store: store.proxy(lambda: "value")(cache_key="key"),
+            "already closed",
+        ),
+        (
+            lambda store: store.proxy(lambda: "value"),
+            "already closed",
+        ),
+    ],
+)
+def test_cachestore_operations_raise_after_close(
+    operation: Callable[[CacheStore[str, str]], object],
+    match: str,
+) -> None:
+    """CacheStore enforces a single closed-state contract for all backends."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        store = _make_store(tmpdir)
+        store.close()
+
+        with pytest.raises(RuntimeError, match=match):
+            operation(store)
+
+
+def test_cachestore_close_is_idempotent() -> None:
+    backend = MagicMock()
+    store: CacheStore[str, int] = CacheStore(
+        namespace="testing",
+        key_serializer=StringSerializer(),
+        value_serializer=_new_pickle_serializer(),
+        backend=backend,
+        default_expire_seconds=60,
+    )
+
+    store.close()
+    store.close()
+
+    backend.close.assert_called_once()
+
+
 def test_get_raises_with_key_context_on_deserialize_failure() -> None:
     """get() must include namespace/key in the error on corrupt data."""
     with tempfile.TemporaryDirectory() as tmpdir:
