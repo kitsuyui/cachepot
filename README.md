@@ -65,6 +65,12 @@ In short, this works as proxy. This helps to make codes straight forward.
 The proxied function requires the keyword-only argument `cache_key` and
 can also accept `expire_seconds`.
 
+When a proxied cache write fails, `cachepot` keeps returning the computed
+result, emits a `CachepotWarning`, logs the failure on the `cachepot.store`
+logger, and increments `store.cache_write_failures`. This lets applications
+forward failures to their existing logging or metrics pipeline without giving
+up graceful degradation.
+
 ## Core idea
 
 Serializers convert python objects into bytes.
