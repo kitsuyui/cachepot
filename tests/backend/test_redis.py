@@ -2,8 +2,10 @@ import time
 from datetime import timedelta
 from unittest.mock import MagicMock
 
+import pytest
 import redis
 
+from cachepot.backend import CacheEntryTooLargeError
 from cachepot.backend.redis import RedisCacheBackend
 
 
@@ -90,6 +92,7 @@ def test_save_zero_expire_skips_write() -> None:
     backend behaviour.
     """
     mock_redis = MagicMock()
+    mock_redis.strlen.return_value = 0
     mock_redis.get.return_value = None
     cachestore = RedisCacheBackend(mock_redis)
 
@@ -97,3 +100,24 @@ def test_save_zero_expire_skips_write() -> None:
 
     mock_redis.set.assert_not_called()
     assert cachestore.load(b"key") is None
+
+
+def test_save_rejects_entries_larger_than_max_entry_bytes() -> None:
+    mock_redis = MagicMock()
+    cachestore = RedisCacheBackend(mock_redis, max_entry_bytes=3)
+
+    with pytest.raises(CacheEntryTooLargeError, match="save"):
+        cachestore.save(b"key", b"toolarge", expire_seconds=60)
+
+    mock_redis.set.assert_not_called()
+
+
+def test_load_rejects_entries_larger_than_max_entry_bytes() -> None:
+    mock_redis = MagicMock()
+    mock_redis.strlen.return_value = 8
+    cachestore = RedisCacheBackend(mock_redis, max_entry_bytes=3)
+
+    with pytest.raises(CacheEntryTooLargeError, match="load"):
+        cachestore.load(b"key")
+
+    mock_redis.get.assert_not_called()
