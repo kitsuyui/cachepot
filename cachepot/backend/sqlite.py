@@ -5,7 +5,11 @@ from datetime import datetime, timezone
 from types import TracebackType
 from typing import cast
 
-from cachepot.backend import CacheBackendProtocol
+from cachepot.backend import (
+    DEFAULT_MAX_ENTRY_BYTES,
+    CacheBackendProtocol,
+    CacheEntryTooLargeError,
+)
 from cachepot.expire import Expiry, to_timedelta
 
 ConnectionLike = str | pathlib.Path | sqlite3.Connection
@@ -54,7 +58,12 @@ class SQLiteCacheBackend(CacheBackendProtocol):
     _lock: threading.Lock
     _closed: bool
 
-    def __init__(self, conn: ConnectionLike) -> None:
+    def __init__(
+        self,
+        conn: ConnectionLike,
+        *,
+        max_entry_bytes: int = DEFAULT_MAX_ENTRY_BYTES,
+    ) -> None:
         if isinstance(conn, (str, pathlib.Path)):
             conn = _open_and_init(conn)
         else:
@@ -62,6 +71,7 @@ class SQLiteCacheBackend(CacheBackendProtocol):
         self._lock = threading.Lock()
         self.conn = conn
         self._closed = False
+        self.max_entry_bytes = max_entry_bytes
 
     def close(self) -> None:
         with self._lock:
@@ -90,6 +100,7 @@ class SQLiteCacheBackend(CacheBackendProtocol):
         *,
         expire_seconds: Expiry,
     ) -> None:
+        self._ensure_entry_fits(len(value), operation="save")
         with self._lock:
             self._check_open()
             expire_at = (
@@ -108,17 +119,48 @@ INSERT OR REPLACE INTO cachepot
         with self._lock:
             self._check_open()
             current_datetime = datetime.now(timezone.utc).isoformat()
-            result = self.conn.execute(
-                """\
-        SELECT value
-          FROM cachepot
-         WHERE key = ?
-           AND expire_at > ?""",
-                (key, current_datetime),
-            ).fetchone()
+            self._ensure_load_fits(key, current_datetime)
+            result = self._load_value_row(key, current_datetime)
         if result:
             return cast(bytes, result[0])
         return None
+
+    def _ensure_load_fits(self, key: bytes, current_datetime: str) -> None:
+        size_row = self.conn.execute(
+            """\
+    SELECT length(value)
+      FROM cachepot
+     WHERE key = ?
+       AND expire_at > ?""",
+            (key, current_datetime),
+        ).fetchone()
+        if size_row:
+            self._ensure_entry_fits(
+                cast(int, size_row[0]),
+                operation="load",
+            )
+
+    def _load_value_row(
+        self,
+        key: bytes,
+        current_datetime: str,
+    ) -> tuple[bytes] | None:
+        return self.conn.execute(
+            """\
+    SELECT value
+      FROM cachepot
+     WHERE key = ?
+       AND expire_at > ?""",
+            (key, current_datetime),
+        ).fetchone()
+
+    def _ensure_entry_fits(self, size: int, *, operation: str) -> None:
+        if size > self.max_entry_bytes:
+            raise CacheEntryTooLargeError(
+                operation=operation,
+                actual_bytes=size,
+                max_entry_bytes=self.max_entry_bytes,
+            )
 
     def exists(self, key: bytes) -> bool:
         with self._lock:

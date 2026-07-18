@@ -10,6 +10,7 @@ from typing import BinaryIO, TextIO, cast
 
 import pytest
 
+from cachepot.backend import CacheEntryTooLargeError
 from cachepot.backend import filesystem as filesystem_backend
 from cachepot.backend.filesystem import FileSystemCacheBackend
 from cachepot.expire import to_timedelta
@@ -392,6 +393,29 @@ def test_exists_does_not_delete_expired_entry() -> None:
 
         assert not cachestore.exists(key)
         assert realpath.exists(), "exists() must not delete the file"
+
+
+def test_save_rejects_entries_larger_than_max_entry_bytes() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cachestore = FileSystemCacheBackend(tmpdir, max_entry_bytes=3)
+
+        with pytest.raises(CacheEntryTooLargeError, match="save"):
+            cachestore.save(b"key", b"toolarge", expire_seconds=60)
+
+
+def test_load_rejects_entries_larger_than_max_entry_bytes() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cache_dir = pathlib.Path(tmpdir)
+        cachestore = FileSystemCacheBackend(cache_dir, max_entry_bytes=3)
+        key = b"collision-key"
+        key_path = _cache_entry_path(cache_dir, key)
+        expire_at = time.time() + 60
+        key_path.write_bytes(
+            struct.pack(_EXPIRY_HEADER_FORMAT, expire_at) + b"oversized",
+        )
+
+        with pytest.raises(CacheEntryTooLargeError, match="load"):
+            cachestore.load(key)
 
 
 def test_expiry_boundary_is_treated_as_expired(

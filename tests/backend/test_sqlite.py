@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 import cachepot.backend.sqlite as sqlite_backend
+from cachepot.backend import CacheEntryTooLargeError
 from cachepot.backend.sqlite import SQLiteCacheBackend
 
 _CONTROLLED_CURRENT_TIME: list[datetime] = [datetime(1970, 1, 1)]
@@ -216,6 +217,36 @@ def test_exists_does_not_return_true_for_expired() -> None:
         assert cachestore.exists(b"k")
         time.sleep(2)
         assert not cachestore.exists(b"k")
+
+
+def test_save_rejects_entries_larger_than_max_entry_bytes() -> None:
+    with tempfile.NamedTemporaryFile() as f:
+        cachestore = SQLiteCacheBackend(f.name, max_entry_bytes=3)
+
+        with pytest.raises(CacheEntryTooLargeError, match="save"):
+            cachestore.save(b"k", b"toolarge", expire_seconds=60)
+
+
+def test_load_rejects_entries_larger_than_max_entry_bytes() -> None:
+    with tempfile.NamedTemporaryFile() as f:
+        cachestore = SQLiteCacheBackend(f.name, max_entry_bytes=3)
+        cachestore.conn.execute(
+            """\
+INSERT INTO cachepot
+            (key, value, expire_at)
+     VALUES (?, ?, ?)""",
+            (
+                b"k",
+                b"toolarge",
+                (
+                    datetime.now(timezone.utc) + timedelta(seconds=60)
+                ).isoformat(),
+            ),
+        )
+        cachestore.conn.commit()
+
+        with pytest.raises(CacheEntryTooLargeError, match="load"):
+            cachestore.load(b"k")
 
 
 def _thread_worker(cachestore: SQLiteCacheBackend, i: int) -> None:
