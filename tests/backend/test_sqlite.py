@@ -35,18 +35,18 @@ class _AdvancingLock:
 
 
 def test_schema_version_is_set_on_new_database() -> None:
-    """A freshly initialised database must have user_version = 1."""
+    """A freshly initialised database must have user_version = 2."""
     with tempfile.NamedTemporaryFile(suffix=".db") as f:
         conn = sqlite3.connect(f.name)
         SQLiteCacheBackend(conn)
         version = conn.execute("PRAGMA user_version").fetchone()[0]
-        assert version == 1
+        assert version == 2
         conn.close()
 
 
 def test_schema_version_upgrades_unversioned_database() -> None:
     """An existing database with user_version = 0 is accepted and upgraded
-    to version 1 without requiring a data migration."""
+    to version 2 without requiring a data migration."""
     with tempfile.NamedTemporaryFile(suffix=".db") as f:
         # Simulate a pre-versioning database: create the schema manually,
         # leave user_version at the SQLite default of 0.
@@ -59,14 +59,36 @@ def test_schema_version_upgrades_unversioned_database() -> None:
         conn.close()
 
         # Opening with SQLiteCacheBackend must succeed and migrate
-        # user_version to 1.
+        # user_version to 2.
         with SQLiteCacheBackend(f.name) as backend:
             backend.save(b"k", b"v", expire_seconds=60)
             assert backend.load(b"k") == b"v"
 
         conn2 = sqlite3.connect(f.name)
         version = conn2.execute("PRAGMA user_version").fetchone()[0]
-        assert version == 1
+        assert version == 2
+        conn2.close()
+
+
+def test_schema_version_upgrades_v1_database_with_expire_index() -> None:
+    with tempfile.NamedTemporaryFile(suffix=".db") as f:
+        conn = sqlite3.connect(f.name)
+        conn.execute(
+            "CREATE TABLE cachepot"
+            " (key BLOB PRIMARY KEY, value BLOB, expire_at timestamp)",
+        )
+        conn.execute("PRAGMA user_version = 1")
+        conn.commit()
+        conn.close()
+
+        SQLiteCacheBackend(f.name).close()
+
+        conn2 = sqlite3.connect(f.name)
+        version = conn2.execute("PRAGMA user_version").fetchone()[0]
+        rows = conn2.execute("PRAGMA index_list('cachepot')").fetchall()
+        index_names = {row[1] for row in rows}
+        assert version == 2
+        assert "idx_cachepot_expire_at" in index_names
         conn2.close()
 
 
@@ -181,6 +203,31 @@ def test_delete_expired() -> None:
 
         # calling again with nothing expired returns 0
         assert cachestore.delete_expired() == 0
+
+
+def test_save_automatically_cleans_expired_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    start = datetime(2026, 1, 1, 0, 0, 0)
+    _CONTROLLED_CURRENT_TIME[0] = start
+
+    with tempfile.NamedTemporaryFile() as f:
+        monkeypatch.setattr(sqlite_backend, "datetime", _ControlledDateTime)
+        monkeypatch.setattr(
+            sqlite_backend,
+            "_AUTOMATIC_EXPIRED_CLEANUP_INTERVAL",
+            timedelta(seconds=0),
+        )
+        cachestore = SQLiteCacheBackend(f.name)
+        cachestore.save(b"expired", b"value", expire_seconds=1)
+
+        _CONTROLLED_CURRENT_TIME[0] = start + timedelta(seconds=2)
+        cachestore.save(b"live", b"value", expire_seconds=60)
+
+        rows = cachestore.conn.execute(
+            "SELECT key FROM cachepot ORDER BY key",
+        ).fetchall()
+        assert rows == [(b"live",)]
 
 
 def test_save_expiration_starts_after_lock_acquisition(
