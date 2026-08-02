@@ -1,10 +1,9 @@
 from typing import Any
 
-from cachepot.backend.filesystem import FileSystemCacheBackend
+from cachepot import CacheStore, FileSystemCacheBackend
 from cachepot.serializer.json import JSONSerializer, JSONType
 from cachepot.serializer.pickle import PickleSerializer
 from cachepot.serializer.str import StringSerializer
-from cachepot.store import CacheStore
 
 
 class SimpleFileSystemCacheStore(CacheStore[str, Any]):
@@ -14,7 +13,7 @@ class SimpleFileSystemCacheStore(CacheStore[str, Any]):
         self,
         namespace: str,
         *,
-        directory: str = 'tmp',
+        directory: str = "tmp",
     ) -> None:
         super().__init__(
             namespace=namespace,
@@ -32,7 +31,7 @@ class FileSystemJSONCacheStore(CacheStore[str, JSONType]):
         self,
         namespace: str,
         *,
-        directory: str = 'tmp',
+        directory: str = "tmp",
     ) -> None:
         super().__init__(
             namespace=namespace,
@@ -44,10 +43,10 @@ class FileSystemJSONCacheStore(CacheStore[str, JSONType]):
 
 
 def example_usage() -> None:
-    cachestore = SimpleFileSystemCacheStore('example', directory='./tmp')
-    cachestore.put('x', 1)
-    assert cachestore.get('x') == 1
-    cachestore.delete('x')
-    assert cachestore.get('x') is None
-    assert cachestore.proxy(lambda: 3)(cache_key='y') == 3
-    assert cachestore.proxy(lambda: 3)(cache_key='y') == 3
+    cachestore = SimpleFileSystemCacheStore("example", directory="./tmp")
+    cachestore.put("x", 1)
+    assert cachestore.get("x") == 1
+    cachestore.delete("x")
+    assert cachestore.get("x") is None
+    assert cachestore.proxy(lambda: 3)(cache_key="y") == 3
+    assert cachestore.proxy(lambda: 3)(cache_key="y") == 3
