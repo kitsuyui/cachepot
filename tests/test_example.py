@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from example import (
     FileSystemJSONCacheStore,
     SimpleFileSystemCacheStore,
@@ -25,3 +27,9 @@ def test_example_usage_runs(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
 
     example_usage()
+
+
+def test_example_module_uses_top_level_cachepot_imports() -> None:
+    source = Path("example/__init__.py").read_text()
+
+    assert "from cachepot import CacheStore, FileSystemCacheBackend" in source
