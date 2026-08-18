@@ -219,17 +219,14 @@ class CacheStore(CacheStoreProtocol[T, S]):
         The proxy injects ``cache_key`` and ``expire_seconds`` as its own
         keyword-only arguments before forwarding the remaining ``**kwargs``
         to *original_function*.  Therefore *original_function* must **not**
-        declare parameters named ``cache_key`` or ``expire_seconds``; if it
-        does, those arguments are silently captured by the proxy and never
-        reach the wrapped function, causing a ``TypeError`` at call time.
+        declare parameters named ``cache_key`` or ``expire_seconds``.
+        ``proxy()`` rejects such conflicts immediately by raising a
+        ``TypeError`` at proxy creation time, before any calls are made.
 
         Passing ``expire_seconds=None`` to the proxy does not disable
         expiration; cache misses are stored with this store's
         ``default_expire_seconds`` value, the same default used by
         ``put()``.
-
-        A ``TypeError`` is raised at proxy creation time when such a conflict
-        is detected, before any calls are made.
 
         **Cache write failures are demoted to warnings.**  When the proxy
         stores a computed result and the backend raises any exception,
