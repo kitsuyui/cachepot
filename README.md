@@ -64,8 +64,11 @@ if result is None:
 ```
 
 In short, this works as proxy. This helps to make codes straight forward.
-The proxied function requires the keyword-only argument `cache_key` and
-can also accept `expire_seconds`.
+`cache_key` and `expire_seconds` are keyword-only arguments of the proxy
+itself, not of the proxied function. `store.proxy(...)` raises `TypeError`
+at proxy creation time if the proxied function declares a parameter named
+`cache_key` or `expire_seconds`, because those names are reserved for the
+proxy.
 
 When a proxied cache write fails, `cachepot` keeps returning the computed
 result, emits a `CachepotWarning`, logs the failure on the `cachepot.store`
