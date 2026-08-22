@@ -97,8 +97,7 @@ class PickleSerializer(SerializerProtocol[Any]):
         Only use this serializer with cache backends whose storage you fully
         control and trust. Never deserialize data received from untrusted
         sources (e.g. shared caches, user-supplied input).
-        Consider :class:`cachepot.serializer.json.JsonSerializer` or
-        :class:`cachepot.serializer.msgpack.MsgpackSerializer` for
+        Consider :class:`cachepot.serializer.json.JSONSerializer` for
         untrusted environments.
     """
 
