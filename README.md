@@ -46,7 +46,7 @@ SQLite also opportunistically removes expired rows during later writes, while
 > not exported from `cachepot`'s top-level namespace. Import it explicitly from
 > `cachepot.serializer.pickle` only when the cache backend storage is fully
 > under your control and trusted. For untrusted environments, prefer
-> `JsonSerializer` or `MsgpackSerializer` instead.
+> `JSONSerializer` instead.
 
 ### Proxy method
 
