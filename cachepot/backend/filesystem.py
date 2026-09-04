@@ -7,6 +7,7 @@ import struct
 import tempfile
 import threading
 import time
+from collections.abc import Callable
 from types import TracebackType
 from typing import BinaryIO, cast
 
@@ -36,13 +37,25 @@ class FileSystemCacheBackend(CacheBackendProtocol):
         path: PathLike,
         *,
         max_entry_bytes: int = DEFAULT_MAX_ENTRY_BYTES,
+        clock: Callable[[], float] | None = None,
     ) -> None:
         if isinstance(path, str):
             self.path = pathlib.Path(path)
         else:
             self.path = path
         self.max_entry_bytes = max_entry_bytes
+        self.__clock = clock
         self.__lock = threading.RLock()
+
+    def __now(self) -> float:
+        # ``clock`` is resolved on every call (rather than bound once) so
+        # that saving the same key/value/TTL through an injected fixed
+        # clock is reproducible across real wall-clock time, while the
+        # default (no ``clock`` supplied) keeps calling ``time.time()``
+        # live so existing ``monkeypatch``-based tests keep working.
+        if self.__clock is not None:
+            return self.__clock()
+        return time.time()
 
     def __get_real_path(self, key: bytes) -> pathlib.Path:
         return self.path / hashlib.sha256(key).hexdigest()
@@ -57,7 +70,7 @@ class FileSystemCacheBackend(CacheBackendProtocol):
         self.__ensure_entry_fits(len(value), operation="save")
         with self.__lock:
             expire_timestamp = (
-                time.time() + to_timedelta(expire_seconds).total_seconds()
+                self.__now() + to_timedelta(expire_seconds).total_seconds()
             )
             realpath = self.__get_real_path(key)
             realpath.parent.mkdir(parents=True, exist_ok=True)
@@ -127,7 +140,7 @@ class FileSystemCacheBackend(CacheBackendProtocol):
 
     def __is_expired(self, path: pathlib.Path) -> bool:
         ts = self.__read_expire_timestamp(path)
-        return ts <= time.time()
+        return ts <= self.__now()
 
     def __is_cache_entry_path(self, path: pathlib.Path) -> bool:
         return _CACHE_ENTRY_NAME_RE.fullmatch(path.name) is not None

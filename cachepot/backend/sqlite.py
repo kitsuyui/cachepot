@@ -1,6 +1,7 @@
 import pathlib
 import sqlite3
 import threading
+from collections.abc import Callable
 from datetime import datetime, timezone
 from types import TracebackType
 from typing import cast
@@ -78,6 +79,7 @@ class SQLiteCacheBackend(CacheBackendProtocol):
         conn: ConnectionLike,
         *,
         max_entry_bytes: int = DEFAULT_MAX_ENTRY_BYTES,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
         if isinstance(conn, (str, pathlib.Path)):
             conn = _open_and_init(conn)
@@ -88,6 +90,16 @@ class SQLiteCacheBackend(CacheBackendProtocol):
         self._closed = False
         self._next_expired_cleanup_at = None
         self.max_entry_bytes = max_entry_bytes
+        self._clock = clock
+
+    def _now(self) -> datetime:
+        # Resolved on every call (rather than bound once) so an injected
+        # fixed clock makes save() reproducible across real wall-clock
+        # time, while the default keeps calling ``datetime.now()`` live
+        # so existing ``monkeypatch``-based tests keep working.
+        if self._clock is not None:
+            return self._clock()
+        return datetime.now(timezone.utc)
 
     def close(self) -> None:
         with self._lock:
@@ -119,7 +131,7 @@ class SQLiteCacheBackend(CacheBackendProtocol):
         self._ensure_entry_fits(len(value), operation="save")
         with self._lock:
             self._check_open()
-            current_datetime = datetime.now(timezone.utc)
+            current_datetime = self._now()
             self._maybe_delete_expired_locked(current_datetime)
             expire_at = (
                 current_datetime + to_timedelta(expire_seconds)
@@ -159,7 +171,7 @@ INSERT OR REPLACE INTO cachepot
     def load(self, key: bytes) -> bytes | None:
         with self._lock:
             self._check_open()
-            current_datetime = datetime.now(timezone.utc).isoformat()
+            current_datetime = self._now().isoformat()
             self._ensure_load_fits(key, current_datetime)
             result = self._load_value_row(key, current_datetime)
         if result:
@@ -206,7 +218,7 @@ INSERT OR REPLACE INTO cachepot
     def exists(self, key: bytes) -> bool:
         with self._lock:
             self._check_open()
-            current_datetime = datetime.now(timezone.utc).isoformat()
+            current_datetime = self._now().isoformat()
             result = self.conn.execute(
                 """\
         SELECT 1
@@ -233,6 +245,6 @@ INSERT OR REPLACE INTO cachepot
         """Delete all expired rows and return the number of deleted rows."""
         with self._lock:
             self._check_open()
-            cur = self._delete_expired_locked(datetime.now(timezone.utc))
+            cur = self._delete_expired_locked(self._now())
             self.conn.commit()
         return cur.rowcount
