@@ -7,8 +7,9 @@ import struct
 import tempfile
 import threading
 import time
+from collections.abc import Callable
 from types import TracebackType
-from typing import BinaryIO, Callable, cast
+from typing import BinaryIO, cast
 
 from cachepot.backend import (
     DEFAULT_MAX_ENTRY_BYTES,

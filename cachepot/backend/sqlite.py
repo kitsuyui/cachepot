@@ -1,9 +1,10 @@
 import pathlib
 import sqlite3
 import threading
+from collections.abc import Callable
 from datetime import datetime, timezone
 from types import TracebackType
-from typing import Callable, cast
+from typing import cast
 
 from cachepot.backend import (
     DEFAULT_MAX_ENTRY_BYTES,
