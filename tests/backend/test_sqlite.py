@@ -183,6 +183,33 @@ def test_expire() -> None:
         assert cachestore.load(b"1") is None
 
 
+def test_injected_clock_makes_save_reproducible() -> None:
+    fixed_datetime = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+    def frozen_clock() -> datetime:
+        return fixed_datetime
+
+    with tempfile.NamedTemporaryFile() as f_a:
+        cachestore_a = SQLiteCacheBackend(f_a.name, clock=frozen_clock)
+        cachestore_a.save(b"key", b"value", expire_seconds=60)
+        row_a = cachestore_a.conn.execute(
+            "SELECT expire_at FROM cachepot WHERE key = ?",
+            (b"key",),
+        ).fetchone()
+
+    time.sleep(0.05)
+
+    with tempfile.NamedTemporaryFile() as f_b:
+        cachestore_b = SQLiteCacheBackend(f_b.name, clock=frozen_clock)
+        cachestore_b.save(b"key", b"value", expire_seconds=60)
+        row_b = cachestore_b.conn.execute(
+            "SELECT expire_at FROM cachepot WHERE key = ?",
+            (b"key",),
+        ).fetchone()
+
+    assert row_a == row_b
+
+
 def test_delete_expired() -> None:
     with tempfile.NamedTemporaryFile() as f:
         cachestore = SQLiteCacheBackend(f.name)

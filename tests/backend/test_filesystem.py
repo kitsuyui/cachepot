@@ -169,6 +169,29 @@ def test_expire() -> None:
         assert cachestore.load(b"1") is None
 
 
+def test_injected_clock_makes_save_reproducible() -> None:
+    fixed_time = 1748172615.0
+
+    def frozen_clock() -> float:
+        return fixed_time
+
+    with tempfile.TemporaryDirectory() as tmpdir_a:
+        cache_dir_a = pathlib.Path(tmpdir_a)
+        cachestore_a = FileSystemCacheBackend(cache_dir_a, clock=frozen_clock)
+        cachestore_a.save(b"key", b"value", expire_seconds=60)
+        bytes_a = _cache_entry_path(cache_dir_a, b"key").read_bytes()
+
+    time.sleep(0.05)
+
+    with tempfile.TemporaryDirectory() as tmpdir_b:
+        cache_dir_b = pathlib.Path(tmpdir_b)
+        cachestore_b = FileSystemCacheBackend(cache_dir_b, clock=frozen_clock)
+        cachestore_b.save(b"key", b"value", expire_seconds=60)
+        bytes_b = _cache_entry_path(cache_dir_b, b"key").read_bytes()
+
+    assert bytes_a == bytes_b
+
+
 def test_fractional_expire_seconds_preserves_subsecond_timestamp(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
