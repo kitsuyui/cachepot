@@ -11,12 +11,33 @@ from cachepot.serializer import SerializerProtocol
 PICKLE_PROTOCOL = 4
 _PicklerBase: Any = pickle._Pickler  # type: ignore[attr-defined]
 
+# Deterministic ordering sorts by each element's own pickled bytes, so the
+# full container is copied into a sorted list and every element (or, for
+# dicts, every key) is re-pickled into a standalone sort key. Serializing a
+# container above this size temporarily holds several multiples of its data
+# in memory; see ``_warn_if_large_container``.
+_LARGE_CONTAINER_WARN_THRESHOLD = 10_000
+
+
+def _warn_if_large_container(size: int, kind: str) -> None:
+    if size > _LARGE_CONTAINER_WARN_THRESHOLD:
+        warnings.warn(
+            f"PickleSerializer is serializing a {kind} with {size} "
+            f"elements (> {_LARGE_CONTAINER_WARN_THRESHOLD}). Deterministic "
+            "ordering requires a full sorted copy and a re-pickled sort key "
+            "per element, so peak memory during serialize() can be several "
+            "times the size of the data itself.",
+            CachepotWarning,
+            stacklevel=3,
+        )
+
 
 class _DeterministicPickler(_PicklerBase):
     dispatch = _PicklerBase.dispatch.copy()
 
     @staticmethod
     def _sorted_items(data: set[Any] | frozenset[Any]) -> list[Any]:
+        _warn_if_large_container(len(data), "set/frozenset")
         return sorted(data, key=_stable_pickle_sort_key)
 
     def save_set(self, obj: set[Any]) -> None:  # noqa: C901
@@ -60,6 +81,7 @@ class _DeterministicPickler(_PicklerBase):
         else:
             self.write(pickle.MARK + pickle.DICT)
         self.memoize(obj)
+        _warn_if_large_container(len(obj), "dict")
         sorted_items = sorted(
             obj.items(), key=lambda kv: _stable_pickle_sort_key(kv[0]),
         )
@@ -99,6 +121,15 @@ class PickleSerializer(SerializerProtocol[Any]):
         sources (e.g. shared caches, user-supplied input).
         Consider :class:`cachepot.serializer.json.JSONSerializer` for
         untrusted environments.
+
+    Warning:
+        Serializing a ``set``, ``frozenset``, or ``dict`` requires making
+        its output byte-for-byte deterministic. To do that, ``serialize()``
+        copies the container into a sorted list and re-pickles every
+        element (every key, for ``dict``) into a standalone sort key, so
+        peak memory usage can be several times the size of the data. A
+        :class:`~cachepot._warnings.CachepotWarning` is emitted when a
+        container exceeds ``_LARGE_CONTAINER_WARN_THRESHOLD`` elements.
     """
 
     def __init__(self) -> None:

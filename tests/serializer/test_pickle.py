@@ -2,12 +2,17 @@ import os
 import pickle
 import subprocess
 import sys
+import warnings
 from dataclasses import dataclass
 
 import pytest
 
 from cachepot._warnings import CachepotWarning
-from cachepot.serializer.pickle import PICKLE_PROTOCOL, PickleSerializer
+from cachepot.serializer.pickle import (
+    _LARGE_CONTAINER_WARN_THRESHOLD,
+    PICKLE_PROTOCOL,
+    PickleSerializer,
+)
 
 
 @dataclass
@@ -64,6 +69,31 @@ def test_pickle_serializer_stabilizes_dict_insertion_order() -> None:
     assert d1 == d2
     assert serializer.serialize(d1) == serializer.serialize(d2)
     assert serializer.deserialize(serializer.serialize(d1)) == d1
+
+
+def test_pickle_serializer_warns_on_large_set() -> None:
+    serializer = _new_pickle_serializer()
+    large = frozenset(range(_LARGE_CONTAINER_WARN_THRESHOLD + 1))
+
+    with pytest.warns(CachepotWarning, match="set/frozenset"):
+        serializer.serialize(large)
+
+
+def test_pickle_serializer_warns_on_large_dict() -> None:
+    serializer = _new_pickle_serializer()
+    large = {i: i for i in range(_LARGE_CONTAINER_WARN_THRESHOLD + 1)}
+
+    with pytest.warns(CachepotWarning, match="dict"):
+        serializer.serialize(large)
+
+
+def test_pickle_serializer_does_not_warn_on_small_containers() -> None:
+    serializer = _new_pickle_serializer()
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", category=CachepotWarning)
+        serializer.serialize(frozenset({1, 2, 3}))
+        serializer.serialize({"a": 1, "b": 2})
 
 
 def _serialize_frozenset_with_hash_seed(seed: str) -> bytes:
