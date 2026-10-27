@@ -37,6 +37,7 @@ dev = [
     "pytest-cov",
     "poethepoet",
     "ruff",
+    "setuptools>=84.1.0",
     "setuptools-scm",
     "mypy",
     "cachepot[redis]",

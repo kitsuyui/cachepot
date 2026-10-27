@@ -107,6 +107,7 @@ dev = [
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
+    { name = "setuptools" },
     { name = "setuptools-scm" },
 ]
 
@@ -125,6 +126,7 @@ dev = [
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
+    { name = "setuptools", specifier = ">=84.1.0" },
     { name = "setuptools-scm" },
 ]
 
