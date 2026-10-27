@@ -39,13 +39,13 @@ jobs:
         run: uv build
 
       - name: Publish distribution to Test PyPI
-        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # release/v1
         if: github.event_name == 'release' && github.event.release.prerelease
         with:
           repository-url: https://test.pypi.org/legacy/
 
       - name: Publish distribution to PyPI
         if: github.event_name == 'release' && !github.event.release.prerelease
-        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # release/v1
         with:
           generate-attestations: true
