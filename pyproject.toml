@@ -2,7 +2,9 @@
 name = "cachepot"
 dynamic = ["version"]
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "kitsuyui.fileio>=0.8.1",
+]
 description = "Yet another Python cache library"
 readme = {file = "README.md", content-type = "text/markdown"}
 license = { file = "LICENSE" }
@@ -88,6 +90,7 @@ max-complexity = 2
 # https://github.com/kitsuyui/kitsuyui/wiki/Official-Information-for-Dependency-Update-Policies
 # PyPI policy in this repo uses a 2 day quarantine window.
 exclude-newer = "2 days"
+exclude-newer-package = { "kitsuyui.fileio" = false }
 
 [build-system]
 requires = ["setuptools", "setuptools_scm"]

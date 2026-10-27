@@ -1,4 +1,5 @@
 import hashlib
+import os
 import pathlib
 import struct
 import tempfile
@@ -251,7 +252,25 @@ def test_save_leaves_no_temp_files() -> None:
 
         names = sorted(p.name for p in cache_dir.iterdir())
         assert len(names) == 2
-        assert all(not n.startswith(".tmp-") for n in names)
+        assert all(not n.startswith(".fileio-") for n in names)
+
+
+def test_save_preserves_existing_entry_when_sync_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cachestore = FileSystemCacheBackend(tmpdir)
+        key = b"sync-failure"
+        cachestore.save(key, b"old", expire_seconds=60)
+
+        def fail_sync(_fd: int) -> None:
+            raise OSError("sync failed")
+
+        monkeypatch.setattr(os, "fsync", fail_sync)
+        with pytest.raises(OSError, match="sync failed"):
+            cachestore.save(key, b"new", expire_seconds=60)
+
+        assert cachestore.load(key) == b"old"
 
 
 def test_save_sets_expiration_header_on_overwrite() -> None:

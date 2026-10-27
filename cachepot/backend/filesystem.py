@@ -1,15 +1,15 @@
 import contextlib
 import hashlib
-import os
 import pathlib
 import re
 import struct
-import tempfile
 import threading
 import time
 from collections.abc import Callable
 from types import TracebackType
 from typing import BinaryIO, cast
+
+from kitsuyui.fileio import atomic_write
 
 from cachepot.backend import (
     DEFAULT_MAX_ENTRY_BYTES,
@@ -75,29 +75,13 @@ class FileSystemCacheBackend(CacheBackendProtocol):
             realpath = self.__get_real_path(key)
             realpath.parent.mkdir(parents=True, exist_ok=True)
 
-            # Atomic write: stage [8-byte expiry header][payload] in a sibling
-            # temp file, fsync to disk, then ``os.replace`` it onto the real
-            # path.  The expiry timestamp is encoded in the file itself so that
-            # external mtime changes (touch, rsync, tar, etc.) cannot corrupt
-            # the expiry state.
-            fd, tmpname = tempfile.mkstemp(
-                prefix=".tmp-",
-                dir=str(realpath.parent),
-            )
-            tmppath = pathlib.Path(tmpname)
-            try:
-                with cast(BinaryIO, os.fdopen(fd, "wb")) as f:
-                    f.write(
-                        struct.pack(_EXPIRY_HEADER_FORMAT, expire_timestamp),
-                    )
-                    f.write(value)
-                    f.flush()
-                    os.fsync(f.fileno())
-                tmppath.replace(realpath)
-            except BaseException:
-                with contextlib.suppress(FileNotFoundError):
-                    tmppath.unlink()
-                raise
+            # The expiry timestamp lives in the file so external mtime changes
+            # cannot alter its expiry state.
+            with atomic_write(realpath, durability="file") as stream:
+                stream.write(
+                    struct.pack(_EXPIRY_HEADER_FORMAT, expire_timestamp),
+                )
+                stream.write(value)
 
     def load(self, key: bytes) -> bytes | None:
         path = self.__get_real_path(key)
