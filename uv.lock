@@ -11,6 +11,9 @@ resolution-markers = [
 exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for backwards compatibility when using relative exclude-newer values.
 exclude-newer-span = "P2D"
 
+[options.exclude-newer-package]
+kitsuyui-fileio = false
+
 [[package]]
 name = "ast-serialize"
 version = "0.13.1"
@@ -87,6 +90,9 @@ wheels = [
 [[package]]
 name = "cachepot"
 source = { editable = "." }
+dependencies = [
+    { name = "kitsuyui-fileio" },
+]
 
 [package.optional-dependencies]
 redis = [
@@ -105,7 +111,10 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "redis", marker = "extra == 'redis'", specifier = ">=8,<9" }]
+requires-dist = [
+    { name = "kitsuyui-fileio", specifier = ">=0.8.1" },
+    { name = "redis", marker = "extra == 'redis'", specifier = ">=8,<9" },
+]
 provides-extras = ["redis"]
 
 [package.metadata.requires-dev]
@@ -413,6 +422,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/01/e1/2069291243c926a2ff1cd706c7f3eeb9b62144bf60f77c9fb9ff2fb26bd3/iniconfig-2.3.1.tar.gz", hash = "sha256:67f4b9c50da0dedf52af349e7749a80a9057a5031199791b906c3bb3ae878960", size = 21209, upload-time = "2026-10-06T22:48:38.076Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/56/43/4ca9e49d27a1fcf6bece6f6aec0ea46bb9112489b93d4b688fb415457bdb/iniconfig-2.3.1-py3-none-any.whl", hash = "sha256:9121e2c1fdb355232495be3194c8dfe87ccc2d5dee45947b78e68f499790d7a7", size = 7552, upload-time = "2026-10-06T22:48:36.959Z" },
+]
+
+[[package]]
+name = "kitsuyui-fileio"
+version = "0.8.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1a/a0/bc9765da2865f434736c09f2c5f360f4e7c5149a324015c1ca974e941395/kitsuyui_fileio-0.8.1.tar.gz", hash = "sha256:694d777b2a7151216a026c9c1d846e17090ff797978804e098a291c5e99ef54c", size = 8332, upload-time = "2026-10-27T10:52:45.556Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7f/d3/646ad7e2ef721d94d389aecc478b1cb869425b249b2837c6a6d18ccfb1af/kitsuyui_fileio-0.8.1-py3-none-any.whl", hash = "sha256:8d75360baa9c7207f4f15724a8103418f7088293e13ac7b8314137cabcc09609", size = 6839, upload-time = "2026-10-27T10:52:44.281Z" },
 ]
 
 [[package]]
