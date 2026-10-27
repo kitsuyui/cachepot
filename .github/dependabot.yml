@@ -27,6 +27,11 @@ updates:
     cooldown:
       default-days: 2
     groups:
+      codeql-action-major:
+        patterns:
+          - github/codeql-action/*
+        update-types:
+          - major
       minor-and-patch:
         update-types:
           - minor
