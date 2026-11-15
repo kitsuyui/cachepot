@@ -32,7 +32,7 @@ class RedisCacheBackend(CacheBackendProtocol):
         expire_seconds: Expiry,
     ) -> None:
         self._ensure_entry_fits(len(value), operation="save")
-        # ``SET key value EX seconds`` is a single Redis command, so the
+        # ``SET key value PX milliseconds`` is a single Redis command, so the
         # value and its TTL land together. The previous pipeline form
         # could leave the key without a TTL if EXPIRE failed after SET.
         td = to_timedelta(expire_seconds)
@@ -41,7 +41,7 @@ class RedisCacheBackend(CacheBackendProtocol):
             # immediately; skip the write so load() returns None, matching
             # FileSystem and SQLite backend behaviour.
             return
-        self.redis.set(key, value, ex=td)
+        self.redis.set(key, value, px=td)
 
     def load(self, key: bytes) -> bytes | None:
         size = cast(int, self.redis.strlen(key))
