@@ -12,4 +12,4 @@ permissions:
   issues: write
 jobs:
   happy:
-    uses: kitsuyui/gh-actions-workflows/.github/workflows/happy-commit.yml@a7071a4635eaece62696cd7132306616ce283c47
+    uses: kitsuyui/gh-actions-workflows/.github/workflows/happy-commit.yml@227436e0e71af44b300e63b4bdab1d388a29ee54
