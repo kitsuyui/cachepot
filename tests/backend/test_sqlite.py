@@ -10,7 +10,7 @@ import pytest
 
 import cachepot.backend.sqlite as sqlite_backend
 from cachepot.backend import CacheEntryTooLargeError
-from cachepot.backend.sqlite import SQLiteCacheBackend
+from cachepot.backend.sqlite import DEFAULT_MAX_ENTRIES, SQLiteCacheBackend
 
 _CONTROLLED_CURRENT_TIME: list[datetime] = [datetime(1970, 1, 1)]
 _CONTROLLED_LOCK_TIME: list[datetime] = [datetime(1970, 1, 1)]
@@ -321,6 +321,73 @@ INSERT INTO cachepot
 
         with pytest.raises(CacheEntryTooLargeError, match="load"):
             cachestore.load(b"k")
+
+
+def test_max_entries_has_a_finite_default() -> None:
+    with SQLiteCacheBackend(":memory:") as backend:
+        assert backend.max_entries == DEFAULT_MAX_ENTRIES
+
+
+def test_max_entries_evicts_existing_entry_closest_to_expiry() -> None:
+    with SQLiteCacheBackend(":memory:", max_entries=2) as backend:
+        backend.save(b"short", b"v", expire_seconds=10)
+        backend.save(b"long", b"v", expire_seconds=1000)
+        backend.save(b"mid", b"v", expire_seconds=100)
+
+        assert not backend.exists(b"short")
+        assert backend.exists(b"long")
+        assert backend.exists(b"mid")
+
+
+def test_max_entries_retains_the_entry_just_saved() -> None:
+    with SQLiteCacheBackend(":memory:", max_entries=1) as backend:
+        backend.save(b"long", b"v", expire_seconds=1000)
+        backend.save(b"short", b"v", expire_seconds=10)
+
+        assert backend.exists(b"short")
+        assert not backend.exists(b"long")
+
+
+def test_max_entries_does_not_evict_when_replacing_a_key() -> None:
+    with SQLiteCacheBackend(":memory:", max_entries=2) as backend:
+        backend.save(b"a", b"1", expire_seconds=10)
+        backend.save(b"b", b"1", expire_seconds=20)
+        backend.save(b"a", b"2", expire_seconds=10)
+
+        assert backend.load(b"a") == b"2"
+        assert backend.exists(b"b")
+
+
+def test_max_entries_converges_after_reopening_oversized_database() -> None:
+    with tempfile.NamedTemporaryFile(suffix=".db") as f:
+        with SQLiteCacheBackend(f.name, max_entries=None) as backend:
+            for key in (b"a", b"b", b"c", b"d"):
+                backend.save(key, b"v", expire_seconds=60)
+
+        with SQLiteCacheBackend(f.name, max_entries=2) as backend:
+            backend.save(b"current", b"v", expire_seconds=60)
+            count = backend.conn.execute(
+                "SELECT count(*) FROM cachepot",
+            ).fetchone()
+            assert count == (2,)
+            assert backend.exists(b"current")
+
+        with SQLiteCacheBackend(f.name, max_entries=2) as backend:
+            backend.save(b"next", b"v", expire_seconds=60)
+            count = backend.conn.execute(
+                "SELECT count(*) FROM cachepot",
+            ).fetchone()
+            assert count == (2,)
+            assert backend.exists(b"next")
+
+
+@pytest.mark.parametrize("bad", [0, -1, True, 1.5])
+def test_max_entries_rejects_invalid_values(bad: object) -> None:
+    with pytest.raises(ValueError, match="max_entries"):
+        SQLiteCacheBackend(
+            ":memory:",
+            max_entries=bad,  # type: ignore[arg-type]
+        )
 
 
 def _thread_worker(cachestore: SQLiteCacheBackend, i: int) -> None:
