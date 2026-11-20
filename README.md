@@ -98,17 +98,17 @@ per backend instance when your application has a different budget.
 
 ### Serializers
 
-- str ... [cachepot.serializer.str.StringSerializer](https://github.com/kitsuyui/cachepot/blob/master/cachepot/serializer/str.py)
-- [pickle](https://docs.python.org/3/library/pickle.html) ... [cachepot.serializer.pickle.PickleSerializer](https://github.com/kitsuyui/cachepot/blob/master/cachepot/serializer/pickle.py)
-- [JSON](https://tools.ietf.org/html/rfc8259) ... [cachepot.serializer.json.JSONSerializer](https://github.com/kitsuyui/cachepot/blob/master/cachepot/serializer/json.py)
+- str ... [cachepot.serializer.str.StringSerializer](https://github.com/kitsuyui/cachepot/blob/main/cachepot/serializer/str.py)
+- [pickle](https://docs.python.org/3/library/pickle.html) ... [cachepot.serializer.pickle.PickleSerializer](https://github.com/kitsuyui/cachepot/blob/main/cachepot/serializer/pickle.py)
+- [JSON](https://tools.ietf.org/html/rfc8259) ... [cachepot.serializer.json.JSONSerializer](https://github.com/kitsuyui/cachepot/blob/main/cachepot/serializer/json.py)
 
 And more serializers you can define.
 
 ### Backends
 
-- Save to files ... [cachepot.backend.filesystem.FileSystemCacheBackend](https://github.com/kitsuyui/cachepot/blob/master/cachepot/backend/filesystem.py)
-- Save to SQLite3 DB records ... [cachepot.backend.sqlite.SQLiteCacheBackend](https://github.com/kitsuyui/cachepot/blob/master/cachepot/backend/sqlite.py)
-- Save to Redis DB ... [cachepot.backend.redis.RedisCacheBackend](https://github.com/kitsuyui/cachepot/blob/master/cachepot/backend/redis.py)
+- Save to files ... [cachepot.backend.filesystem.FileSystemCacheBackend](https://github.com/kitsuyui/cachepot/blob/main/cachepot/backend/filesystem.py)
+- Save to SQLite3 DB records ... [cachepot.backend.sqlite.SQLiteCacheBackend](https://github.com/kitsuyui/cachepot/blob/main/cachepot/backend/sqlite.py)
+- Save to Redis DB ... [cachepot.backend.redis.RedisCacheBackend](https://github.com/kitsuyui/cachepot/blob/main/cachepot/backend/redis.py)
 
 Of course you can define own backend.
 
