@@ -17,6 +17,7 @@ ConnectionLike = str | pathlib.Path | sqlite3.Connection
 
 _SCHEMA_VERSION = 2
 _AUTOMATIC_EXPIRED_CLEANUP_INTERVAL = to_timedelta(60)
+DEFAULT_MAX_ENTRIES = 10_000
 
 
 def _migrate_to_v2(conn: sqlite3.Connection) -> None:
@@ -68,6 +69,16 @@ def _open_and_init(path: str | pathlib.Path) -> sqlite3.Connection:
     return conn
 
 
+def _validate_max_entries(max_entries: int | None) -> None:
+    valid = max_entries is None or (
+        isinstance(max_entries, int)
+        and not isinstance(max_entries, bool)
+        and max_entries >= 1
+    )
+    if not valid:
+        raise ValueError("max_entries must be a positive integer or None")
+
+
 class SQLiteCacheBackend(CacheBackendProtocol):
     conn: sqlite3.Connection
     _lock: threading.Lock
@@ -79,8 +90,10 @@ class SQLiteCacheBackend(CacheBackendProtocol):
         conn: ConnectionLike,
         *,
         max_entry_bytes: int = DEFAULT_MAX_ENTRY_BYTES,
+        max_entries: int | None = DEFAULT_MAX_ENTRIES,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
+        _validate_max_entries(max_entries)
         if isinstance(conn, (str, pathlib.Path)):
             conn = _open_and_init(conn)
         else:
@@ -90,6 +103,7 @@ class SQLiteCacheBackend(CacheBackendProtocol):
         self._closed = False
         self._next_expired_cleanup_at = None
         self.max_entry_bytes = max_entry_bytes
+        self.max_entries = max_entries
         self._clock = clock
 
     def _now(self) -> datetime:
@@ -143,7 +157,29 @@ INSERT OR REPLACE INTO cachepot
      VALUES (?, ?, ?)""",
                 (key, value, expire_at),
             )
+            self._evict_over_limit_locked(protected_key=key)
             self.conn.commit()
+
+    def _evict_over_limit_locked(self, *, protected_key: bytes) -> None:
+        """Evict rows closest to expiry while retaining the current write."""
+        if self.max_entries is None:
+            return
+        self.conn.execute(
+            """\
+        DELETE
+          FROM cachepot
+         WHERE key IN (
+               SELECT key
+                 FROM cachepot
+                WHERE key != ?
+             ORDER BY expire_at, key
+                LIMIT max(
+                      0,
+                      (SELECT count(*) FROM cachepot) - ?
+                )
+         )""",
+            (protected_key, self.max_entries),
+        )
 
     def _maybe_delete_expired_locked(self, current_datetime: datetime) -> None:
         if (

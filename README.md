@@ -89,6 +89,13 @@ rejected on `save()`, and `load()` checks the backend-side size before
 materializing the payload into process memory. You can override the limit
 per backend instance when your application has a different budget.
 
+`SQLiteCacheBackend` also bounds its row count with
+`max_entries=10_000` by default. A write beyond the limit evicts existing
+entries closest to expiry while retaining the entry just written. Set a
+different positive limit for another storage budget, or use `None` to opt out.
+The limit is enforced on every write, including after an existing database is
+reopened.
+
 - Python3 typing supports
 - namespaces
 - Proxy method
