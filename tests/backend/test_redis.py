@@ -83,6 +83,19 @@ def test_save_accepts_timedelta_expire_seconds() -> None:
         cachestore.delete(b"td-key")
 
 
+def test_save_preserves_fractional_expiry_with_milliseconds() -> None:
+    mock_redis = MagicMock()
+    cachestore = RedisCacheBackend(mock_redis)
+
+    cachestore.save(b"fractional-key", b"value", expire_seconds=0.5)
+
+    mock_redis.set.assert_called_once_with(
+        b"fractional-key",
+        b"value",
+        px=timedelta(milliseconds=500),
+    )
+
+
 def test_save_zero_expire_skips_write() -> None:
     """expire_seconds=0 must not raise a ResponseError.
 
